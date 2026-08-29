@@ -1,0 +1,18 @@
+{
+	log {
+		level ERROR
+	}
+}
+
+thekorn-server-2.home {
+	log {
+		output file /var/log/caddy/access-thekorn-server-2.home.log
+	}
+
+	tls internal
+	redir /radar /radar/ 308
+	handle_path /radar/* {
+		reverse_proxy 127.0.0.1:8080
+	}
+	respond "Caddy is running on thekorn-server-2"
+}

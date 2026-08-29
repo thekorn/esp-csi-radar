@@ -36,3 +36,20 @@
 - Capture startup output and check for ESP-IDF errors, panics, resets, role
   acknowledgements, and CSI records. Do not claim sensing validation based on
   a successful firmware build alone.
+- Apply the repository `Caddyfile` to the running Caddy instance from the
+  repository root on `thekorn-server-2` with:
+
+  ```sh
+  set -o pipefail
+  caddy adapt --config Caddyfile --adapter caddyfile |
+    curl --fail-with-body --silent --show-error \
+      --request POST \
+      --header 'Content-Type: application/json' \
+      --data-binary @- \
+      http://127.0.0.1:2019/load
+  ```
+
+  The admin API replaces the complete live Caddy configuration. Review the
+  file before applying it if other routes have changed. This host starts Caddy
+  from a NixOS-generated config, so reapply after a Caddy restart, reload, or
+  NixOS switch until the route is represented in the declarative host config.

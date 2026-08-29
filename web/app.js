@@ -185,7 +185,7 @@ function render(state) {
 
 async function loadInitialState() {
   try {
-    const response = await fetch("/api/state", { cache: "no-store" });
+    const response = await fetch("api/state", { cache: "no-store" });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     render(await response.json());
   } catch (error) {
@@ -194,7 +194,7 @@ async function loadInitialState() {
 }
 
 function connectEvents() {
-  const events = new EventSource("/api/events");
+  const events = new EventSource("api/events");
   events.onopen = () => {
     elements.connectionDot.classList.add("connected");
     elements.connectionLabel.textContent = "Live stream";
@@ -211,7 +211,7 @@ elements.startCalibration.addEventListener("click", async (event) => {
   event.preventDefault();
   elements.startCalibration.disabled = true;
   try {
-    const response = await fetch("/api/calibrate", { method: "POST" });
+    const response = await fetch("api/calibrate", { method: "POST" });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     elements.dialog.close();
   } finally {

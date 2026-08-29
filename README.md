@@ -96,13 +96,37 @@ nix develop .#setup -c ./scripts/flash-all.sh
 Then start the host service:
 
 ```sh
-nix develop .#setup -c python -m host.server --bind 0.0.0.0 \
+nix develop .#setup -c python -m host.server --bind 127.0.0.1 \
   --ports /dev/esp32-1 /dev/esp32-2 /dev/esp32-3 /dev/esp32-4
 ```
 
 The service opens all ports at 921600 baud. It assigns `/dev/esp32-1` as TX,
 passes its live MAC to each receiver as a CSI source filter, and begins
 streaming at 20 Hz on Wi-Fi channel 6.
+
+### Apply the Caddy path proxy
+
+The repository [`Caddyfile`](Caddyfile) preserves the host's existing root
+response and exposes the loopback service at
+`https://thekorn-server-2.home/radar/`. From the repository root on
+`thekorn-server-2`, apply it to the running Caddy instance through its local
+admin API:
+
+```sh
+set -o pipefail
+caddy adapt --config Caddyfile --adapter caddyfile |
+  curl --fail-with-body --silent --show-error \
+    --request POST \
+    --header 'Content-Type: application/json' \
+    --data-binary @- \
+    http://127.0.0.1:2019/load
+```
+
+This replaces the complete live Caddy configuration, so review the `Caddyfile`
+before applying it if the host's other routes have changed. The host starts
+Caddy from a NixOS-generated configuration rather than its autosave. Reapply
+this command after a Caddy restart, reload, or NixOS switch until the route is
+added to the host's declarative NixOS configuration.
 
 Leave the room empty while the initial baseline reaches 100%. Use **Calibrate**
 in the web page any time sensor placement, furniture, or the RF channel
@@ -134,6 +158,7 @@ occupied, empty, and nuisance data before relying on its output.
 - `main/` — Zig application and thin ESP-IDF C adapter;
 - `host/` — serial protocol, detector, simulator, and HTTP service;
 - `web/` — dependency-free responsive visualization;
+- `Caddyfile` — live `/radar/` path proxy configuration for the hardware host;
 - `scripts/flash-all.sh` — ESP-IDF-driven four-board flashing;
 - `flake.nix` — pinned development toolchain;
 - `codebook.toml` — project-local spelling dictionary.
