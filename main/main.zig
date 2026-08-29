@@ -2,39 +2,46 @@
 
 const std = @import("std");
 const builtin = @import("builtin");
+const firmware_options = @import("firmware_options");
 
-const default_channel: u8 = 6;
-const default_rate_hz: u8 = 20;
+const sample_rate_hz: u8 = 20;
 const max_csi_bytes = 384;
+const status_interval_ms = 5000;
 
-const RxConfig = struct {
-    channel: u8,
-    transmitter_mac: [6]u8,
+const DeviceRole = enum {
+    tx,
+    rx,
 };
 
-const TxConfig = struct {
-    channel: u8,
-    rate_hz: u8,
+const Device = struct {
+    name: []const u8,
+    mac: [6]u8,
+    role: DeviceRole,
 };
 
-const Command = union(enum) {
-    info,
-    tx: TxConfig,
-    rx: RxConfig,
-};
-
-const ParseError = error{
-    InvalidCommand,
-    InvalidChannel,
-    InvalidRate,
-    InvalidMac,
+const transmitter_mac = [6]u8{ 0xf4, 0x2d, 0xc9, 0x6b, 0xf2, 0x00 };
+const devices = [_]Device{
+    .{ .name = "esp32-1", .mac = transmitter_mac, .role = .tx },
+    .{ .name = "esp32-2", .mac = .{ 0xe0, 0x8c, 0xfe, 0x59, 0x96, 0x34 }, .role = .rx },
+    .{ .name = "esp32-3", .mac = .{ 0xe0, 0x8c, 0xfe, 0x59, 0x3f, 0x9c }, .role = .rx },
+    .{ .name = "esp32-4", .mac = .{ 0xb0, 0xcb, 0xd8, 0xcc, 0xc5, 0xa8 }, .role = .rx },
 };
 
 extern fn platform_init() void;
 extern fn platform_get_mac(output: *[6]u8) void;
-extern fn platform_start_tx(channel: u8) u8;
+extern fn platform_connect_wifi(
+    network_name: [*]const u8,
+    network_name_length: u8,
+    network_secret: [*]const u8,
+    network_secret_length: u8,
+    hostname: [*]const u8,
+    hostname_length: u8,
+    channel: *u8,
+) u8;
+extern fn platform_start_websocket(server_host: [*]const u8, server_host_length: u16, server_port: u16) u8;
+extern fn platform_start_tx() u8;
 extern fn platform_send_probe(data: [*]const u8, length: u16) u8;
-extern fn platform_start_rx(channel: u8, transmitter_mac: *const [6]u8) u8;
+extern fn platform_start_rx(transmitter: *const [6]u8) u8;
 extern fn platform_csi_read(
     data: [*]i8,
     capacity: u16,
@@ -45,76 +52,15 @@ extern fn platform_csi_read(
     channel: *u8,
     dropped: *u32,
 ) u8;
-extern fn platform_read_char() i32;
 extern fn platform_write(data: [*]const u8, length: u16) void;
 extern fn platform_millis() u64;
 extern fn platform_delay_ms(delay_ms: u32) void;
 
-fn parseU8(value: []const u8, minimum: u8, maximum: u8, parse_error: ParseError) ParseError!u8 {
-    const parsed = std.fmt.parseInt(u8, value, 10) catch return parse_error;
-    if (parsed < minimum or parsed > maximum) return parse_error;
-    return parsed;
-}
-
-fn hexValue(value: u8) ?u8 {
-    return switch (value) {
-        '0'...'9' => value - '0',
-        'a'...'f' => value - 'a' + 10,
-        'A'...'F' => value - 'A' + 10,
-        else => null,
-    };
-}
-
-fn parseMac(value: []const u8) ParseError![6]u8 {
-    var compact: [12]u8 = undefined;
-    var compact_length: usize = 0;
-    for (value) |character| {
-        if (character == ':' or character == '-') continue;
-        if (compact_length == compact.len) return error.InvalidMac;
-        compact[compact_length] = character;
-        compact_length += 1;
+fn identifyDevice(mac: [6]u8) ?*const Device {
+    for (&devices) |*device| {
+        if (std.mem.eql(u8, &device.mac, &mac)) return device;
     }
-    if (compact_length != compact.len) return error.InvalidMac;
-
-    var mac: [6]u8 = undefined;
-    for (0..mac.len) |index| {
-        const upper = hexValue(compact[index * 2]) orelse return error.InvalidMac;
-        const lower = hexValue(compact[index * 2 + 1]) orelse return error.InvalidMac;
-        mac[index] = upper * 16 + lower;
-    }
-    return mac;
-}
-
-fn parseCommand(line: []const u8) ParseError!Command {
-    var parts = std.mem.splitScalar(u8, std.mem.trim(u8, line, " \r\n"), ',');
-    const name = parts.next() orelse return error.InvalidCommand;
-
-    if (std.ascii.eqlIgnoreCase(name, "INFO")) {
-        if (parts.next() != null) return error.InvalidCommand;
-        return .info;
-    }
-    if (!std.ascii.eqlIgnoreCase(name, "ROLE")) return error.InvalidCommand;
-
-    const role = parts.next() orelse return error.InvalidCommand;
-    if (std.ascii.eqlIgnoreCase(role, "TX")) {
-        const channel_text = parts.next() orelse return error.InvalidCommand;
-        const rate_text = parts.next() orelse return error.InvalidCommand;
-        if (parts.next() != null) return error.InvalidCommand;
-        return .{ .tx = .{
-            .channel = try parseU8(channel_text, 1, 13, error.InvalidChannel),
-            .rate_hz = try parseU8(rate_text, 1, 100, error.InvalidRate),
-        } };
-    }
-    if (std.ascii.eqlIgnoreCase(role, "RX")) {
-        const channel_text = parts.next() orelse return error.InvalidCommand;
-        const mac_text = parts.next() orelse return error.InvalidCommand;
-        if (parts.next() != null) return error.InvalidCommand;
-        return .{ .rx = .{
-            .channel = try parseU8(channel_text, 1, 13, error.InvalidChannel),
-            .transmitter_mac = try parseMac(mac_text),
-        } };
-    }
-    return error.InvalidCommand;
+    return null;
 }
 
 fn write(bytes: []const u8) void {
@@ -141,21 +87,33 @@ fn writeHello(mac: [6]u8) void {
     write(line);
 }
 
-fn readLine(buffer: []u8) []const u8 {
-    var length: usize = 0;
-    while (true) {
-        const input = platform_read_char();
-        if (input < 0) continue;
-        const character: u8 = @intCast(input & 0xff);
-        if (character == '\n' or character == '\r') {
-            if (length != 0) return buffer[0..length];
-            continue;
-        }
-        if (length < buffer.len) {
-            buffer[length] = character;
-            length += 1;
-        }
-    }
+fn writeTransmitterReady(mac: [6]u8, channel: u8) void {
+    var mac_buffer: [17]u8 = undefined;
+    var line_buffer: [96]u8 = undefined;
+    const line = std.fmt.bufPrint(&line_buffer, "RADAR,READY,TX,{s},{d},{d}\n", .{
+        formatMac(&mac_buffer, mac), channel, sample_rate_hz,
+    }) catch return;
+    write(line);
+}
+
+fn writeReceiverReady(mac: [6]u8, channel: u8) void {
+    var mac_buffer: [17]u8 = undefined;
+    var tx_mac_buffer: [17]u8 = undefined;
+    var line_buffer: [112]u8 = undefined;
+    const line = std.fmt.bufPrint(&line_buffer, "RADAR,READY,RX,{s},{d},{s}\n", .{
+        formatMac(&mac_buffer, mac), channel, formatMac(&tx_mac_buffer, transmitter_mac),
+    }) catch return;
+    write(line);
+}
+
+fn announceTransmitter(mac: [6]u8, channel: u8) void {
+    writeHello(mac);
+    writeTransmitterReady(mac, channel);
+}
+
+fn announceReceiver(mac: [6]u8, channel: u8) void {
+    writeHello(mac);
+    writeReceiverReady(mac, channel);
 }
 
 fn putLittleEndian32(buffer: *[12]u8, offset: usize, value: u32) void {
@@ -165,23 +123,17 @@ fn putLittleEndian32(buffer: *[12]u8, offset: usize, value: u32) void {
     buffer[offset + 3] = @truncate(value >> 24);
 }
 
-fn runTransmitter(mac: [6]u8, config: TxConfig) noreturn {
-    if (platform_start_tx(config.channel) == 0) {
+fn runTransmitter(mac: [6]u8, channel: u8) noreturn {
+    if (platform_start_tx() == 0) {
         write("RADAR,ERROR,tx_start_failed\n");
         while (true) platform_delay_ms(1000);
     }
-
-    var mac_buffer: [17]u8 = undefined;
-    var ready_buffer: [96]u8 = undefined;
-    const ready = std.fmt.bufPrint(&ready_buffer, "RADAR,READY,TX,{s},{d},{d}\n", .{
-        formatMac(&mac_buffer, mac), config.channel, config.rate_hz,
-    }) catch unreachable;
-    write(ready);
+    announceTransmitter(mac, channel);
 
     var sequence: u32 = 0;
     var failures: u32 = 0;
     var previous_status = platform_millis();
-    const period_ms: u32 = @max(1, 1000 / @as(u32, config.rate_hz));
+    const period_ms: u32 = 1000 / @as(u32, sample_rate_hz);
 
     while (true) {
         var probe = [_]u8{ 'C', 'S', 'I', 'R', 0, 0, 0, 0, 0, 0, 0, 0 };
@@ -191,7 +143,8 @@ fn runTransmitter(mac: [6]u8, config: TxConfig) noreturn {
         sequence +%= 1;
 
         const now = platform_millis();
-        if (now - previous_status >= 5000) {
+        if (now - previous_status >= status_interval_ms) {
+            announceTransmitter(mac, channel);
             var status_buffer: [80]u8 = undefined;
             const status = std.fmt.bufPrint(&status_buffer, "RADAR,TX_STATUS,{d},{d}\n", .{
                 sequence, failures,
@@ -203,24 +156,23 @@ fn runTransmitter(mac: [6]u8, config: TxConfig) noreturn {
     }
 }
 
-fn runReceiver(mac: [6]u8, config: RxConfig) noreturn {
-    if (platform_start_rx(config.channel, &config.transmitter_mac) == 0) {
+fn runReceiver(mac: [6]u8, wifi_channel: u8) noreturn {
+    if (platform_start_rx(&transmitter_mac) == 0) {
         write("RADAR,ERROR,rx_start_failed\n");
         while (true) platform_delay_ms(1000);
     }
-
-    var mac_buffer: [17]u8 = undefined;
-    var tx_mac_buffer: [17]u8 = undefined;
-    var ready_buffer: [112]u8 = undefined;
-    const mac_text = formatMac(&mac_buffer, mac);
-    const ready = std.fmt.bufPrint(&ready_buffer, "RADAR,READY,RX,{s},{d},{s}\n", .{
-        mac_text, config.channel, formatMac(&tx_mac_buffer, config.transmitter_mac),
-    }) catch unreachable;
-    write(ready);
+    announceReceiver(mac, wifi_channel);
 
     var sequence: u32 = 0;
+    var previous_status = platform_millis();
     var csi_data: [max_csi_bytes]i8 = undefined;
     while (true) {
+        const now = platform_millis();
+        if (now - previous_status >= status_interval_ms) {
+            announceReceiver(mac, wifi_channel);
+            previous_status = now;
+        }
+
         var length: u16 = 0;
         var timestamp_us: u32 = 0;
         var rssi: i8 = 0;
@@ -241,9 +193,10 @@ fn runReceiver(mac: [6]u8, config: RxConfig) noreturn {
             continue;
         }
 
+        var mac_buffer: [17]u8 = undefined;
         var line_buffer: [960]u8 = undefined;
         const header = std.fmt.bufPrint(&line_buffer, "RADAR,CSI,{s},{d},{d},{d},{d},{d},{d},{d},", .{
-            mac_text,
+            formatMac(&mac_buffer, mac),
             sequence,
             timestamp_us,
             rssi,
@@ -267,63 +220,88 @@ fn runReceiver(mac: [6]u8, config: RxConfig) noreturn {
     }
 }
 
+fn startNetwork(device: *const Device) ?u8 {
+    var channel: u8 = 0;
+    if (platform_connect_wifi(
+        firmware_options.network_name.ptr,
+        @intCast(firmware_options.network_name.len),
+        firmware_options.network_secret.ptr,
+        @intCast(firmware_options.network_secret.len),
+        device.name.ptr,
+        @intCast(device.name.len),
+        &channel,
+    ) == 0) {
+        write("RADAR,ERROR,wifi_connect_failed\n");
+        return null;
+    }
+    if (platform_start_websocket(
+        firmware_options.server_host.ptr,
+        @intCast(firmware_options.server_host.len),
+        firmware_options.server_port,
+    ) == 0) {
+        write("RADAR,ERROR,websocket_start_failed\n");
+    }
+    return channel;
+}
+
 pub fn app_main() callconv(.c) void {
     platform_init();
     var mac: [6]u8 = undefined;
     platform_get_mac(&mac);
+    const device = identifyDevice(mac) orelse {
+        write("RADAR,ERROR,unknown_device\n");
+        while (true) platform_delay_ms(1000);
+    };
     writeHello(mac);
 
-    var command_buffer: [96]u8 = undefined;
-    while (true) {
-        const command = parseCommand(readLine(&command_buffer)) catch {
-            write("RADAR,ERROR,invalid_command\n");
-            continue;
-        };
-        switch (command) {
-            .info => writeHello(mac),
-            .tx => |config| runTransmitter(mac, config),
-            .rx => |config| runReceiver(mac, config),
-        }
+    const channel = startNetwork(device) orelse {
+        while (true) platform_delay_ms(1000);
+    };
+    switch (device.role) {
+        .tx => runTransmitter(mac, channel),
+        .rx => runReceiver(mac, channel),
     }
 }
 
-test "parses transmitter role" {
-    const command = try parseCommand("ROLE,TX,6,20\r\n");
-    switch (command) {
-        .tx => |config| {
-            try std.testing.expectEqual(@as(u8, default_channel), config.channel);
-            try std.testing.expectEqual(@as(u8, default_rate_hz), config.rate_hz);
-        },
-        else => return error.TestUnexpectedResult,
+fn validateFirmwareOptions() void {
+    if (firmware_options.network_name.len == 0 or firmware_options.network_name.len > 32) {
+        @compileError("ESP_NETWORK_NAME must contain between 1 and 32 bytes");
+    }
+    if (firmware_options.network_secret.len < 8 or firmware_options.network_secret.len > 64) {
+        @compileError("ESP_NETWORK_SECRET must contain between 8 and 64 bytes");
+    }
+    if (firmware_options.server_host.len == 0 or firmware_options.server_host.len > 253) {
+        @compileError("ESP_SERVER_HOST must contain between 1 and 253 bytes");
+    }
+    if (std.mem.indexOf(u8, firmware_options.server_host, "://") != null) {
+        @compileError("ESP_SERVER_HOST must not include a URL scheme");
+    }
+    if (firmware_options.server_port == 0) {
+        @compileError("ESP_SERVER_PORT must be an integer from 1 to 65535");
     }
 }
 
-test "parses receiver role and colon separated MAC" {
-    const command = try parseCommand("ROLE,RX,11,f4:2d:c9:6b:f2:00");
-    switch (command) {
-        .rx => |config| {
-            try std.testing.expectEqual(@as(u8, 11), config.channel);
-            try std.testing.expectEqualSlices(u8, &.{ 0xf4, 0x2d, 0xc9, 0x6b, 0xf2, 0x00 }, &config.transmitter_mac);
-        },
-        else => return error.TestUnexpectedResult,
+test "identifies every device by factory MAC" {
+    for (devices, 0..) |expected, index| {
+        const actual = identifyDevice(expected.mac) orelse return error.TestUnexpectedResult;
+        try std.testing.expectEqualStrings(expected.name, actual.name);
+        try std.testing.expectEqual(expected.role, actual.role);
+        try std.testing.expectEqual(index == 0, actual.role == .tx);
     }
 }
 
-test "rejects unsafe radio settings" {
-    try std.testing.expectError(error.InvalidChannel, parseCommand("ROLE,TX,14,20"));
-    try std.testing.expectError(error.InvalidRate, parseCommand("ROLE,TX,6,0"));
-    try std.testing.expectError(error.InvalidMac, parseCommand("ROLE,RX,6,not-a-mac"));
+test "rejects an unknown device MAC" {
+    try std.testing.expectEqual(@as(?*const Device, null), identifyDevice(.{ 0, 1, 2, 3, 4, 5 }));
 }
 
 test "formats stable MAC identity" {
     var buffer: [17]u8 = undefined;
-    try std.testing.expectEqualStrings("f4:2d:c9:6b:f2:00", formatMac(&buffer, .{
-        0xf4, 0x2d, 0xc9, 0x6b, 0xf2, 0x00,
-    }));
+    try std.testing.expectEqualStrings("f4:2d:c9:6b:f2:00", formatMac(&buffer, transmitter_mac));
 }
 
 comptime {
     if (!builtin.is_test) {
+        validateFirmwareOptions();
         @export(&app_main, .{ .name = "app_main" });
     }
 }

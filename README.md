@@ -4,12 +4,13 @@
 
 A four-device room sensing demo that detects changes caused by people without
 using a camera or microphone. One ESP32 broadcasts fixed-rate ESP-NOW probes;
-three ESP32 receivers collect channel state information (CSI) and stream it to
-a Linux host. The host calibrates an empty-room radio fingerprint, detects
-sustained changes across the three links, and serves a live web visualization.
+three ESP32 receivers collect channel state information (CSI) and stream it over
+Wi-Fi to a Linux server. The server calibrates an empty-room radio fingerprint,
+detects sustained changes across the three links, and serves a live web
+visualization.
 
 ```text
-                         ESP-NOW probes, channel 6
+                       ESP-NOW probes, Wi-Fi AP channel
                                   ┌────────┐
                                   │ ESP32  │
                                   │ TX · 1 │
@@ -20,25 +21,30 @@ sustained changes across the three links, and serves a live web visualization.
                     │ ESP32  │   │ ESP32  │   │ ESP32  │
                     │ RX · 2 │   │ RX · 3 │   │ RX · 4 │
                     └───┬────┘   └───┬────┘   └───┬────┘
-                        └──── USB serial to Linux ─┘
+                        └──── WebSockets over Wi-Fi ─┘
                                       │
                               detector + web UI
 ```
 
-All boards use the same Zig firmware. The host assigns the first serial port
-as transmitter and the remaining ports as receivers at boot.
+All boards use the same Zig firmware and need only power after flashing. Each
+board maps its factory Wi-Fi MAC to a fixed device name and role, joins the
+configured access point, and connects to the server without USB control.
 
 ## Hardware
 
 The checked hardware on `thekorn-server-2` is four homogeneous
 ESP32-D0WD-V3 revision 3.1 devices with 4 MB flash and CP2102 USB-UART bridges:
 
-| Port | Role | Factory MAC |
+| Device and DHCP hostname | Role | Factory MAC |
 | --- | --- | --- |
-| `/dev/esp32-1` | Transmitter | `f4:2d:c9:6b:f2:00` |
-| `/dev/esp32-2` | Receiver 1 | `e0:8c:fe:59:96:34` |
-| `/dev/esp32-3` | Receiver 2 | `e0:8c:fe:59:3f:9c` |
-| `/dev/esp32-4` | Receiver 3 | `b0:cb:d8:cc:c5:a8` |
+| `esp32-1` | Transmitter | `f4:2d:c9:6b:f2:00` |
+| `esp32-2` | Receiver 1 | `e0:8c:fe:59:96:34` |
+| `esp32-3` | Receiver 2 | `e0:8c:fe:59:3f:9c` |
+| `esp32-4` | Receiver 3 | `b0:cb:d8:cc:c5:a8` |
+
+An image built from this repository deliberately supports only these four
+boards. Firmware on an unknown factory MAC reports an error instead of choosing
+an unsafe role.
 
 For useful sensing, fix the four devices in place with the transmitter on one
 side of the room and receivers spread around the opposite perimeter. Keep each
@@ -78,8 +84,8 @@ The project follows the Zig/ESP-IDF boundary used by
 [`thekorn/esp32-flappy-bird`](https://github.com/thekorn/esp32-flappy-bird):
 Zig produces the application object, while ESP-IDF owns SDK integration,
 linking, image generation, and flashing. `main/platform.c` is only a thin
-SDK and FreeRTOS adapter; radio role behavior, commands, probe construction,
-and output framing live in `main/main.zig`.
+SDK and FreeRTOS adapter; device identity, radio role behavior, probe
+construction, and output framing live in `main/main.zig`.
 
 ## Run without hardware
 
@@ -97,29 +103,67 @@ seconds.
 Inside an Amp orb, `amp orb services ensure` starts the same simulator as a
 supervised service and prints its authenticated portal URL.
 
-## Flash and run the real demo
+## Build and flash autonomous firmware
 
-On `thekorn-server-2`, build and flash the same image to every board:
+Firmware configuration comes from four build-time environment variables:
+
+- `ESP_NETWORK_NAME` — 2.4 GHz Wi-Fi network name;
+- `ESP_NETWORK_SECRET` — WPA password, from 8 through 64 bytes;
+- `ESP_SERVER_HOST` — DNS name or IPv4 address of the Bun server as reachable
+  from the ESP network, without `http://`, `ws://`, or a path;
+- `ESP_SERVER_PORT` — TCP port from 1 through 65535 on which the Bun server will
+  listen.
+
+No additional variable is needed for plain WebSockets on a trusted LAN. The
+firmware connects to `ws://ESP_SERVER_HOST:ESP_SERVER_PORT/device`. TLS (`wss`),
+server certificate trust, and device authentication are not implemented.
+
+The four values are embedded in the firmware image and can be extracted by
+someone who obtains the image or reads a board's flash. Keep build artifacts
+private. Whenever any value changes, use a clean build so the Zig object cannot
+be reused with old settings, then flash the same image to every board:
 
 ```sh
-nix develop .#setup -c idf.py build
+nix develop .#setup -c idf.py fullclean build
 nix develop .#setup -c ./scripts/flash-all.sh
 ```
 
-The real-hardware host runs under Node.js 24. Bun remains the package manager
-and test runner, but its Linux N-API implementation does not provide the
-libuv polling APIs required by `serialport`.
+At boot, every board identifies itself from its factory MAC, sets `esp32-1`
+through `esp32-4` as its DHCP hostname, joins the access point, and adopts the
+access point's 2.4 GHz channel for ESP-NOW and CSI. `esp32-1` transmits probes at
+20 Hz; the other three boards collect CSI. Every firmware record is mirrored to
+UART for diagnostics and to the WebSocket whenever it is connected. The client
+automatically reconnects, and periodic identity records let a restarted server
+rediscover all boards.
 
-For a foreground run, start the host service with:
+## Run the server
+
+The real-hardware server runs under Node.js 24. Bun remains the package manager
+and test runner, but its Linux N-API implementation does not provide the libuv
+polling APIs required by `serialport`.
+
+Socket mode is the normal detached deployment. It listens on all interfaces by
+default, using `ESP_SERVER_PORT` when `--port` is omitted, and serves the device
+WebSocket, dashboard, and HTTP API on that one port:
 
 ```sh
-nix develop .#setup -c node host/server.ts --bind 127.0.0.1 \
+nix develop .#setup -c node host/server.ts --socket
+```
+
+Ensure the server address in `ESP_SERVER_HOST` resolves from the ESP network and
+that the selected TCP port is allowed through the server firewall. Start the
+server before or after the boards; they will reconnect automatically.
+
+Serial mode remains available as a passive diagnostic and fallback transport
+when the boards are connected by USB. It does not provision or control them:
+
+```sh
+nix develop .#setup -c node host/server.ts --serial \
   --ports /dev/esp32-1 /dev/esp32-2 /dev/esp32-3 /dev/esp32-4
 ```
 
-The service opens all ports at 921600 baud. It assigns `/dev/esp32-1` as TX,
-passes its live MAC to each receiver as a CSI source filter, and begins
-streaming at 20 Hz on Wi-Fi channel 6.
+`--serial`, `--socket`, and `--simulate` are mutually exclusive. Serial mode is
+the command-line default for compatibility.
 
 For the persistent service used on `thekorn-server-2`, place the checkout at
 `~/.local/share/esp-csi-radar`, install the tracked user unit, and start it:
@@ -143,7 +187,7 @@ curl --fail-with-body http://127.0.0.1:8080/api/health
 ### Apply the Caddy path proxy
 
 The repository [`Caddyfile`](Caddyfile) preserves the host's existing root
-response and exposes the loopback service at
+response and exposes the server dashboard at
 `https://thekorn-server-2.home/radar/`. From the repository root on
 `thekorn-server-2`, apply it to the running Caddy instance through its local
 admin API:
@@ -162,7 +206,8 @@ This replaces the complete live Caddy configuration, so review the `Caddyfile`
 before applying it if the host's other routes have changed. The host starts
 Caddy from a NixOS-generated configuration rather than its autosave. Reapply
 this command after a Caddy restart, reload, or NixOS switch until the route is
-added to the host's declarative NixOS configuration.
+added to the host's declarative NixOS configuration. The ESP devices connect
+directly to `ESP_SERVER_PORT`; they do not use this HTTPS dashboard proxy.
 
 Leave the room empty while the initial baseline reaches 100%. Use **Calibrate**
 in the web page any time sensor placement, furniture, or the RF channel

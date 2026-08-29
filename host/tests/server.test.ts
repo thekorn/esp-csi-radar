@@ -73,11 +73,28 @@ describe("HTTP server", () => {
         "/dev/esp32-1",
       ]),
     ).toMatchObject({
-      simulate: true,
+      mode: "simulation",
       bind: "0.0.0.0",
       port: 9000,
       ports: ["/dev/esp32-2", "/dev/esp32-1"],
     });
     expect(() => parseArguments(["--port="])).toThrow("--port requires a whole number");
+  });
+
+  test("selects serial and WebSocket ingestion modes", () => {
+    expect(parseArguments([], {})).toMatchObject({
+      mode: "serial",
+      bind: "127.0.0.1",
+      port: 8080,
+    });
+    expect(parseArguments(["--socket"], { ESP_SERVER_PORT: "9080" })).toMatchObject({
+      mode: "socket",
+      bind: "0.0.0.0",
+      port: 9080,
+    });
+    expect(() => parseArguments([], { ESP_SERVER_PORT: "0" })).toThrow(
+      "--port must be between 1 and 65535",
+    );
+    expect(() => parseArguments(["--serial", "--socket"], {})).toThrow("mutually exclusive");
   });
 });

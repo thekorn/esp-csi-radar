@@ -3,9 +3,10 @@ import { createServer, type Server } from "node:http";
 import { extname, isAbsolute, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Readable } from "node:stream";
+import { WebSocketServer } from "ws";
 
 import { RoomDetector, type DetectorSnapshot } from "./detector.ts";
-import type { DeviceSnapshot } from "./devices.ts";
+import type { DeviceSnapshot, SocketFleet } from "./devices.ts";
 import type { CsiFrame } from "./protocol.ts";
 import { CsiSimulator } from "./simulator.ts";
 
@@ -220,25 +221,25 @@ async function startHttpServer(
 interface Arguments {
   bind: string;
   port: number;
-  channel: number;
   rate: number;
   baud: number;
   ports: string[];
-  simulate: boolean;
+  mode: "serial" | "socket" | "simulation";
   calibrationSamples: number;
   holdSeconds: number;
   verbose: boolean;
 }
 
-const HELP = `Usage: bun run host/server.ts [options]
+const HELP = `Usage: node host/server.ts [options]
 
 Options:
   --bind ADDRESS               HTTP bind address (default: 127.0.0.1)
-  --port PORT                  HTTP port (default: 8080)
-  --channel CHANNEL            Wi-Fi channel from 1 to 13 (default: 6)
+  --port PORT                  HTTP port (default: ESP_SERVER_PORT or 8080)
   --rate HZ                    sample rate from 1 to 100 (default: 20)
   --baud BAUD                  serial baud rate (default: 921600)
-  --ports PORT [PORT ...]      sorted serial ports; first becomes transmitter
+  --ports PORT [PORT ...]      serial ports in esp32-1 through esp32-4 order
+  --serial                     ingest device records over USB serial (default)
+  --socket                     ingest device records at WebSocket path /device
   --simulate                   generate CSI instead of opening serial ports
   --calibration-samples COUNT  frames used for calibration (default: 80)
   --hold-seconds SECONDS       occupancy hold duration (default: 20)
@@ -254,18 +255,31 @@ function numericValue(name: string, value: string, integer: boolean): number {
   return parsed;
 }
 
-export function parseArguments(argv: string[]): Arguments {
+export function parseArguments(
+  argv: string[],
+  environment: Record<string, string | undefined> = process.env,
+): Arguments {
+  const environmentPort = environment.ESP_SERVER_PORT;
   const options: Arguments = {
     bind: "127.0.0.1",
-    port: 8080,
-    channel: 6,
+    port: environmentPort ? numericValue("ESP_SERVER_PORT", environmentPort, true) : 8080,
     rate: 20,
     baud: 921_600,
     ports: [1, 2, 3, 4].map((index) => `/dev/esp32-${index}`),
-    simulate: false,
+    mode: "serial",
     calibrationSamples: 80,
     holdSeconds: 20,
     verbose: false,
+  };
+  let bindWasSet = false;
+  let modeWasSet = false;
+
+  const selectMode = (mode: Arguments["mode"]): void => {
+    if (modeWasSet && options.mode !== mode) {
+      throw new Error("--serial, --socket, and --simulate are mutually exclusive");
+    }
+    options.mode = mode;
+    modeWasSet = true;
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -283,12 +297,10 @@ export function parseArguments(argv: string[]): Arguments {
     switch (name) {
       case "--bind":
         options.bind = takeValue();
+        bindWasSet = true;
         break;
       case "--port":
         options.port = numericValue(name, takeValue(), true);
-        break;
-      case "--channel":
-        options.channel = numericValue(name, takeValue(), true);
         break;
       case "--rate":
         options.rate = numericValue(name, takeValue(), true);
@@ -313,8 +325,14 @@ export function parseArguments(argv: string[]): Arguments {
         options.ports = ports;
         break;
       }
+      case "--serial":
+        selectMode("serial");
+        break;
+      case "--socket":
+        selectMode("socket");
+        break;
       case "--simulate":
-        options.simulate = true;
+        selectMode("simulation");
         break;
       case "--verbose":
         options.verbose = true;
@@ -328,14 +346,14 @@ export function parseArguments(argv: string[]): Arguments {
     }
   }
 
-  if (options.port < 0 || options.port > 65_535) {
-    throw new Error("--port must be between 0 and 65535");
-  }
-  if (options.channel < 1 || options.channel > 13) {
-    throw new Error("--channel must be between 1 and 13");
+  if (options.port < 1 || options.port > 65_535) {
+    throw new Error("--port must be between 1 and 65535");
   }
   if (options.rate < 1 || options.rate > 100) {
     throw new Error("--rate must be between 1 and 100");
+  }
+  if (options.mode === "socket" && !bindWasSet) {
+    options.bind = "0.0.0.0";
   }
   return options;
 }
@@ -352,22 +370,26 @@ export async function main(): Promise<void> {
 
   const detector = new RoomDetector(options.calibrationSamples, options.holdSeconds);
   let source: Source;
-  if (options.simulate) {
+  let socketSource: SocketFleet | null = null;
+  if (options.mode === "simulation") {
     source = new CsiSimulator((frame) => detector.ingest(frame), options.rate);
-  } else {
+  } else if (options.mode === "serial") {
     const { SerialFleet } = await import("./devices.ts");
     source = new SerialFleet(
       options.ports,
       (frame) => detector.ingest(frame),
-      options.channel,
       options.rate,
       options.baud,
     );
+  } else {
+    const { SocketFleet: SocketFleetClass } = await import("./devices.ts");
+    socketSource = new SocketFleetClass((frame) => detector.ingest(frame), options.rate);
+    source = socketSource;
   }
   const application = new RadarApplication(
     detector,
     source,
-    options.simulate ? "simulation" : "hardware",
+    options.mode === "simulation" ? "simulation" : "hardware",
   );
   const handler = createRequestHandler(application);
   const server = await startHttpServer(options.bind, options.port, (request) => {
@@ -376,8 +398,34 @@ export async function main(): Promise<void> {
     }
     return handler(request);
   });
+  let websocketServer: WebSocketServer | null = null;
+  if (socketSource) {
+    const fleet = socketSource;
+    const upgradeServer = new WebSocketServer({
+      noServer: true,
+      maxPayload: 1200,
+      perMessageDeflate: false,
+    });
+    websocketServer = upgradeServer;
+    server.on("upgrade", (request, socket, head) => {
+      const pathname = new URL(
+        request.url ?? "/",
+        `http://${request.headers.host ?? `${options.bind}:${options.port}`}`,
+      ).pathname;
+      if (pathname !== "/device") {
+        socket.write("HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n");
+        socket.destroy();
+        return;
+      }
+      upgradeServer.handleUpgrade(request, socket, head, (websocket) => {
+        fleet.accept(websocket);
+      });
+    });
+  }
   source.start();
-  console.info(`serving ${application.mode} mode on http://${options.bind}:${options.port}/`);
+  console.info(
+    `serving ${application.mode} mode via ${options.mode} on http://${options.bind}:${options.port}/`,
+  );
 
   let shutdownStarted = false;
   const shutdown = () => {
@@ -386,6 +434,8 @@ export async function main(): Promise<void> {
     }
     shutdownStarted = true;
     source.stop();
+    websocketServer?.clients.forEach((socket) => socket.close(1001, "server stopping"));
+    websocketServer?.close();
     server.close();
     server.closeAllConnections();
   };

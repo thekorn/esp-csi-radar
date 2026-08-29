@@ -14,7 +14,9 @@ export interface Hello {
 export interface Ready {
   type: "ready";
   role: "TX" | "RX";
-  fields: string[];
+  mac: string;
+  channel: number;
+  detail: string;
 }
 
 export interface DeviceError {
@@ -78,10 +80,25 @@ export function parseLine(line: string): Message | null {
     return { type: "hello", mac: normalizeMac(parts[2]), chip: parts[3] };
   }
   if (messageType === "READY") {
-    if (parts.length < 4 || (parts[2] !== "TX" && parts[2] !== "RX")) {
+    if (parts.length !== 6 || (parts[2] !== "TX" && parts[2] !== "RX")) {
       throw new ProtocolError("READY has an invalid role");
     }
-    return { type: "ready", role: parts[2], fields: parts.slice(3) };
+    let channel: number;
+    try {
+      channel = parseInteger(parts[4]);
+    } catch {
+      throw new ProtocolError("READY contains an invalid channel");
+    }
+    if (channel < 1 || channel > 13) {
+      throw new ProtocolError("READY channel is outside the supported 2.4 GHz range");
+    }
+    return {
+      type: "ready",
+      role: parts[2],
+      mac: normalizeMac(parts[3]),
+      channel,
+      detail: parts[5],
+    };
   }
   if (messageType === "ERROR") {
     if (parts.length !== 3) {

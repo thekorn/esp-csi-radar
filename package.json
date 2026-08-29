@@ -11,10 +11,12 @@
     "typecheck": "bun node_modules/typescript/bin/tsc --noEmit"
   },
   "dependencies": {
-    "serialport": "^13.0.0"
+    "serialport": "^13.0.0",
+    "ws": "^8.21.3"
   },
   "devDependencies": {
     "@types/bun": "^1.2.22",
+    "@types/ws": "^8.18.1",
     "oxfmt": "^0.65.0",
     "oxlint": "^1.80.0",
     "typescript": "^7"

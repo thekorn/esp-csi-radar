@@ -5,7 +5,7 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=%h/.local/share/esp-csi-radar
-ExecStart=/run/current-system/sw/bin/nix develop path:.#setup --command node host/server.ts --bind 127.0.0.1 --ports /dev/esp32-1 /dev/esp32-2 /dev/esp32-3 /dev/esp32-4
+ExecStart=/run/current-system/sw/bin/nix develop path:.#setup --command node host/server.ts --socket
 Restart=on-failure
 RestartSec=5
 
