@@ -36,7 +36,7 @@ pub fn errorMessage(err: ParseError) []const u8 {
     return switch (err) {
         error.InvalidEnvironmentPort => "ESP_SERVER_PORT must be a whole number between 1 and 65535",
         error.MissingValue => "option requires a value",
-        error.InvalidNumber => "option requires a valid number",
+        error.InvalidNumber => "option requires a valid value",
         error.InvalidPort => "--port must be between 1 and 65535",
         error.InvalidRate => "--rate must be between 1 and 100",
         error.InvalidCalibrationSamples => "--calibration-samples must be at least 10",
