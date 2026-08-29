@@ -123,6 +123,13 @@ fn putLittleEndian32(buffer: *[12]u8, offset: usize, value: u32) void {
     buffer[offset + 3] = @truncate(value >> 24);
 }
 
+fn createProbe(sequence: u32, timestamp_ms: u32) [12]u8 {
+    var probe = [_]u8{ 'C', 'S', 'I', 'R', 0, 0, 0, 0, 0, 0, 0, 0 };
+    putLittleEndian32(&probe, 4, sequence);
+    putLittleEndian32(&probe, 8, timestamp_ms);
+    return probe;
+}
+
 fn runTransmitter(mac: [6]u8, channel: u8) noreturn {
     if (platform_start_tx() == 0) {
         write("RADAR,ERROR,tx_start_failed\n");
@@ -136,9 +143,7 @@ fn runTransmitter(mac: [6]u8, channel: u8) noreturn {
     const period_ms: u32 = 1000 / @as(u32, sample_rate_hz);
 
     while (true) {
-        var probe = [_]u8{ 'C', 'S', 'I', 'R', 0, 0, 0, 0, 0, 0, 0, 0 };
-        putLittleEndian32(&probe, 4, sequence);
-        putLittleEndian32(&probe, 8, @truncate(platform_millis()));
+        const probe = createProbe(sequence, @truncate(platform_millis()));
         if (platform_send_probe(&probe, probe.len) == 0) failures +%= 1;
         sequence +%= 1;
 
@@ -297,6 +302,15 @@ test "rejects an unknown device MAC" {
 test "formats stable MAC identity" {
     var buffer: [17]u8 = undefined;
     try std.testing.expectEqualStrings("f4:2d:c9:6b:f2:00", formatMac(&buffer, transmitter_mac));
+}
+
+test "creates the ESP-NOW probe payload in little-endian wire format" {
+    const probe = createProbe(0x78563412, 0xf0debc9a);
+    try std.testing.expectEqualSlices(u8, &.{
+        'C',  'S',  'I',  'R',
+        0x12, 0x34, 0x56, 0x78,
+        0x9a, 0xbc, 0xde, 0xf0,
+    }, &probe);
 }
 
 comptime {

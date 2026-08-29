@@ -29,7 +29,7 @@ jobs:
         run: nix flake check --no-build
 
       - name: Check Zig formatting
-        run: nix develop .#setup --command zig fmt --check build.zig main/main.zig host-zig
+        run: nix develop .#setup --command zig fmt --check build.zig test_runner.zig main/main.zig host-zig
 
       - name: Run Zig tests
         run: nix develop .#setup --command zig build test

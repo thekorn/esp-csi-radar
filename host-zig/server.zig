@@ -601,3 +601,94 @@ test "connection limiter bounds total and streaming connections" {
     limiter.releaseStreaming();
     try std.testing.expect(limiter.tryAcquireStreaming());
 }
+
+fn testServerRequest(app: *application.Application, request: []const u8) ![]u8 {
+    const address: std.Io.net.IpAddress = .{ .ip4 = .loopback(0) };
+    var listener = try address.listen(std.testing.io, .{});
+    defer listener.deinit(std.testing.io);
+    const client_stream = try listener.socket.address.connect(std.testing.io, .{
+        .mode = .stream,
+        .protocol = .tcp,
+    });
+    defer client_stream.close(std.testing.io);
+    const server_stream = try listener.accept(std.testing.io);
+
+    var write_buffer: [1024]u8 = undefined;
+    var client_writer = client_stream.writer(std.testing.io, &write_buffer);
+    try client_writer.interface.writeAll(request);
+    try client_writer.interface.flush();
+
+    var limiter: ConnectionLimiter = .{};
+    try std.testing.expect(limiter.tryAcquire());
+    connectionThread(
+        app,
+        std.testing.allocator,
+        server_stream,
+        false,
+        &limiter,
+    );
+
+    var read_buffer: [1024]u8 = undefined;
+    var client_reader = client_stream.reader(std.testing.io, &read_buffer);
+    return client_reader.interface.allocRemaining(std.testing.allocator, .limited(64 * 1024));
+}
+
+test "server exposes state and calibration APIs" {
+    var app = try application.Application.init(
+        std.testing.io,
+        .simulation,
+        20,
+        80,
+        20,
+        &.{},
+    );
+    const state_response = try testServerRequest(
+        &app,
+        "GET /api/state HTTP/1.1\r\nHost: test\r\nConnection: close\r\n\r\n",
+    );
+    defer std.testing.allocator.free(state_response);
+    try std.testing.expect(std.mem.indexOf(u8, state_response, "HTTP/1.1 200 OK") != null);
+    try std.testing.expect(std.mem.indexOf(u8, state_response, "content-type: application/json") != null);
+    try std.testing.expect(std.mem.indexOf(u8, state_response, "\"mode\":\"simulation\"") != null);
+
+    const calibrate_response = try testServerRequest(
+        &app,
+        "POST /api/calibrate HTTP/1.1\r\nHost: test\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+    );
+    defer std.testing.allocator.free(calibrate_response);
+    try std.testing.expect(std.mem.indexOf(u8, calibrate_response, "HTTP/1.1 202 Accepted") != null);
+    try std.testing.expect(std.mem.endsWith(u8, calibrate_response, "{\"ok\":true}"));
+
+    const snapshot = try app.snapshotJson(std.testing.allocator);
+    defer std.testing.allocator.free(snapshot);
+    var parsed = try std.json.parseFromSlice(std.json.Value, std.testing.allocator, snapshot, .{});
+    defer parsed.deinit();
+    try std.testing.expectEqual(@as(i64, 1), parsed.value.object.get("generation").?.integer);
+}
+
+test "server serves static assets and returns 404 for unknown routes" {
+    var app = try application.Application.init(
+        std.testing.io,
+        .simulation,
+        20,
+        80,
+        20,
+        &.{},
+    );
+    const asset_response = try testServerRequest(
+        &app,
+        "GET /app.js?version=test HTTP/1.1\r\nHost: test\r\nConnection: close\r\n\r\n",
+    );
+    defer std.testing.allocator.free(asset_response);
+    try std.testing.expect(std.mem.indexOf(u8, asset_response, "HTTP/1.1 200 OK") != null);
+    try std.testing.expect(std.mem.indexOf(u8, asset_response, "content-type: text/javascript; charset=utf-8") != null);
+    try std.testing.expect(std.mem.endsWith(u8, asset_response, assets.app_js));
+
+    const missing_response = try testServerRequest(
+        &app,
+        "GET /missing HTTP/1.1\r\nHost: test\r\nConnection: close\r\n\r\n",
+    );
+    defer std.testing.allocator.free(missing_response);
+    try std.testing.expect(std.mem.indexOf(u8, missing_response, "HTTP/1.1 404 Not Found") != null);
+    try std.testing.expect(std.mem.endsWith(u8, missing_response, "Not Found"));
+}

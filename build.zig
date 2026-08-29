@@ -21,7 +21,10 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
     test_module.addOptions("firmware_options", firmware_options);
-    const firmware_tests = b.addTest(.{ .root_module = test_module });
+    const firmware_tests = b.addTest(.{
+        .root_module = test_module,
+        .test_runner = .{ .path = b.path("test_runner.zig"), .mode = .simple },
+    });
     const run_firmware_tests = b.addRunArtifact(firmware_tests);
     const test_step = b.step("test", "Run firmware and host unit tests");
     test_step.dependOn(&run_firmware_tests.step);
@@ -56,26 +59,18 @@ pub fn build(b: *std.Build) void {
     const run_host_step = b.step("run-host", "Run the Zig host server");
     run_host_step.dependOn(&run_host.step);
 
-    inline for (.{ "host-zig/options.zig", "host-zig/sources.zig" }) |path| {
-        const host_test_module = b.createModule(.{
-            .root_source_file = b.path(path),
-            .target = b.graph.host,
-            .optimize = optimize,
-        });
-        const host_tests = b.addTest(.{ .root_module = host_test_module });
-        const run_host_tests = b.addRunArtifact(host_tests);
-        test_step.dependOn(&run_host_tests.step);
-    }
-
-    const server_test_module = b.createModule(.{
-        .root_source_file = b.path("host-zig/server.zig"),
+    const host_test_module = b.createModule(.{
+        .root_source_file = b.path("host-zig/tests.zig"),
         .target = b.graph.host,
         .optimize = optimize,
     });
-    server_test_module.addImport("assets", asset_module);
-    const server_tests = b.addTest(.{ .root_module = server_test_module });
-    const run_server_tests = b.addRunArtifact(server_tests);
-    test_step.dependOn(&run_server_tests.step);
+    host_test_module.addImport("assets", asset_module);
+    const host_tests = b.addTest(.{
+        .root_module = host_test_module,
+        .test_runner = .{ .path = b.path("test_runner.zig"), .mode = .simple },
+    });
+    const run_host_tests = b.addRunArtifact(host_tests);
+    test_step.dependOn(&run_host_tests.step);
 
     const target = b.resolveTargetQuery(.{
         .cpu_arch = .xtensa,

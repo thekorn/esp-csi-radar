@@ -38,6 +38,7 @@ words = [
   "NOSYSTEM",
   "nums",
   "nvs",
+  "OOM",
   "oxfmt",
   "oxfmtrc",
   "oxlint",
