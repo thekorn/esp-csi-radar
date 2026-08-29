@@ -38,19 +38,19 @@ jobs:
         run: nix develop .#setup --command zig build host
 
       - name: Install host dependencies
-        run: nix develop .#setup --command bun install --frozen-lockfile
+        run: nix develop .#setup --command pnpm install --frozen-lockfile
 
       - name: Required pre-commit type check
-        run: nix develop .#setup --command bun run typecheck
+        run: nix develop .#setup --command pnpm run typecheck
 
       - name: Required pre-commit lint check
-        run: nix develop .#setup --command bun run lint
+        run: nix develop .#setup --command pnpm run lint
 
       - name: Required pre-commit format check
-        run: nix develop .#setup --command bun run format:check
+        run: nix develop .#setup --command pnpm run format:check
 
       - name: Run host tests
-        run: nix develop .#setup --command bun test
+        run: nix develop .#setup --command pnpm test
 
       - name: Spell check
         run: nix develop .#setup --command codebook-lsp lint --unique -s .

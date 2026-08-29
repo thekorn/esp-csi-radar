@@ -40,6 +40,7 @@
       devShells = forAllSystems (system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
+          pnpm = pkgs.pnpm.override { nodejs-slim = pkgs.nodejs-slim_26; };
           esp-idf = esp-dev.packages.${system}.esp-idf-xtensa.overrideAttrs (old: {
             installPhase = ''
               export GIT_CONFIG_NOSYSTEM=1
@@ -62,9 +63,9 @@
             '';
           };
           corePackages = [
-            pkgs.bun
             pkgs.codebook
-            pkgs.nodejs_24
+            pkgs.nodejs_26
+            pnpm
             esp-idf
             zig-xtensa
           ];
@@ -84,7 +85,7 @@
             ];
             LD_LIBRARY_PATH = nativeLibraryPath;
             shellHook = ''
-              echo "ESP32 CSI environment: ESP-IDF $(idf.py --version | sed 's/^ESP-IDF //'), Zig $(zig version), Bun $(bun --version)"
+              echo "ESP32 CSI environment: ESP-IDF $(idf.py --version | sed 's/^ESP-IDF //'), Zig $(zig version), Node.js $(node --version), pnpm $(pnpm --version)"
             '';
           };
         });

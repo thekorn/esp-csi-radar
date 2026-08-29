@@ -1,4 +1,5 @@
-import { describe, expect, test } from "bun:test";
+import assert from "node:assert/strict";
+import { describe, test } from "node:test";
 import type { WebSocket } from "ws";
 
 import { SerialFleet, SocketFleet } from "../devices.ts";
@@ -25,10 +26,10 @@ describe("serial fleet", () => {
 
     fleet.handleMessage(receiver, frame);
 
-    expect(receiver.status.ready).toBe(true);
-    expect(receiver.status.error).toBeNull();
-    expect(receiver.status.malformed).toBe(1);
-    expect(frames).toEqual([frame]);
+    assert.equal(receiver.status.ready, true);
+    assert.equal(receiver.status.error, null);
+    assert.equal(receiver.status.malformed, 1);
+    assert.deepEqual(frames, [frame]);
   });
 
   test("associates WebSocket records with a known device", () => {
@@ -46,12 +47,15 @@ describe("serial fleet", () => {
     fleet.handleSocketMessage(socket, "RADAR,READY,RX,e08cfe599634,6,f42dc96bf200\n");
     fleet.handleSocketMessage(socket, "RADAR,CSI,e08cfe599634,7,1234,-47,-94,6,0,4,00ff7f80\n");
 
-    expect(closed).toEqual([]);
-    expect(fleet.snapshot()[1]).toMatchObject({ connected: true, ready: true, chip: "esp32" });
-    expect(frames).toHaveLength(1);
+    assert.deepEqual(closed, []);
+    assert.equal(fleet.snapshot()[1].connected, true);
+    assert.equal(fleet.snapshot()[1].ready, true);
+    assert.equal(fleet.snapshot()[1].chip, "esp32");
+    assert.equal(frames.length, 1);
 
     fleet.closeSocket(socket);
-    expect(fleet.snapshot()[1]).toMatchObject({ connected: false, ready: false });
+    assert.equal(fleet.snapshot()[1].connected, false);
+    assert.equal(fleet.snapshot()[1].ready, false);
   });
 
   test("rejects an unknown WebSocket device", () => {
@@ -66,6 +70,6 @@ describe("serial fleet", () => {
 
     fleet.handleSocketMessage(socket, "RADAR,HELLO,001122334455,esp32\n");
 
-    expect(closed).toEqual([1008]);
+    assert.deepEqual(closed, [1008]);
   });
 });

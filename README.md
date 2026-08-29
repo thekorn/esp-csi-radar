@@ -54,22 +54,22 @@ orientation, and keep USB cables from moving during calibration or detection.
 ## Development environment
 
 [Nix flakes](https://nixos.org/) provide ESP-IDF, an Xtensa-capable Zig build,
-Bun, ZLS, nixd, and Codebook. Install the locked JavaScript dependencies used
-by the retained TypeScript reference implementation and its tests after
-entering the development environment:
+Node.js 26, pnpm, ZLS, nixd, and Codebook. Install the locked JavaScript
+dependencies used by the retained TypeScript reference implementation and its
+tests after entering the development environment:
 
 ```sh
 nix develop
-bun install --frozen-lockfile
+pnpm install --frozen-lockfile
 ```
 
 Before every commit, run the TypeScript type check, Oxlint, and Oxfmt formatting
 check:
 
 ```sh
-nix develop .#setup -c bun run typecheck
-nix develop .#setup -c bun run lint
-nix develop .#setup -c bun run format:check
+nix develop .#setup -c pnpm run typecheck
+nix develop .#setup -c pnpm run lint
+nix develop .#setup -c pnpm run format:check
 ```
 
 Other verification commands can also be run without entering a shell:
@@ -77,7 +77,7 @@ Other verification commands can also be run without entering a shell:
 ```sh
 nix develop .#setup -c zig build host
 nix develop .#setup -c zig build test
-nix develop .#setup -c bun test
+nix develop .#setup -c pnpm test
 nix develop .#setup -c idf.py build
 nix develop .#setup -c codebook-lsp lint --unique -s .
 ```
@@ -148,7 +148,7 @@ nix develop .#setup -c zig build host
 
 The binary is installed at `zig-out/bin/esp-csi-radar-host`. The previous
 Node/TypeScript host remains unchanged under `host/` as an executable reference
-implementation and can be run with `bun run start:reference -- [options]`.
+implementation and can be run with `pnpm run start:reference -- [options]`.
 
 Socket mode is the normal detached deployment. It listens on all interfaces by
 default, using `ESP_SERVER_PORT` when `--port` is omitted, and serves the device

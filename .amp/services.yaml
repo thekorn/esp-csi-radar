@@ -1,6 +1,6 @@
 services:
   radar-simulator:
-    command: nix develop .#setup --command zig build run-host -- --simulate --bind 0.0.0.0 --port "$PORT"
+    command: env -u LD_LIBRARY_PATH nix develop .#setup --command zig build run-host -- --simulate --bind 0.0.0.0 --port "$PORT"
     health: /api/health
     portal:
       title: ESP CSI room radar
