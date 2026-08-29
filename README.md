@@ -106,16 +106,39 @@ nix develop .#setup -c idf.py build
 nix develop .#setup -c ./scripts/flash-all.sh
 ```
 
-Then start the host service:
+The real-hardware host runs under Node.js 24. Bun remains the package manager
+and test runner, but its Linux N-API implementation does not provide the
+libuv polling APIs required by `serialport`.
+
+For a foreground run, start the host service with:
 
 ```sh
-nix develop .#setup -c bun run host/server.ts --bind 127.0.0.1 \
+nix develop .#setup -c node host/server.ts --bind 127.0.0.1 \
   --ports /dev/esp32-1 /dev/esp32-2 /dev/esp32-3 /dev/esp32-4
 ```
 
 The service opens all ports at 921600 baud. It assigns `/dev/esp32-1` as TX,
 passes its live MAC to each receiver as a CSI source filter, and begins
 streaming at 20 Hz on Wi-Fi channel 6.
+
+For the persistent service used on `thekorn-server-2`, place the checkout at
+`~/.local/share/esp-csi-radar`, install the tracked user unit, and start it:
+
+```sh
+nix develop .#setup -c bun install --frozen-lockfile
+mkdir -p ~/.config/systemd/user
+cp deploy/esp-csi-radar.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now esp-csi-radar.service
+```
+
+After updating the checkout, restart the service and verify the hardware API:
+
+```sh
+systemctl --user restart esp-csi-radar.service
+systemctl --user --no-pager status esp-csi-radar.service
+curl --fail-with-body http://127.0.0.1:8080/api/health
+```
 
 ### Apply the Caddy path proxy
 

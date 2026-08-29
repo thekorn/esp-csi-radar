@@ -1,11 +1,22 @@
-import { isAbsolute, relative, resolve } from "node:path";
+import { readFile } from "node:fs/promises";
+import { createServer, type Server } from "node:http";
+import { extname, isAbsolute, relative, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { Readable } from "node:stream";
 
 import { RoomDetector, type DetectorSnapshot } from "./detector.ts";
 import type { DeviceSnapshot } from "./devices.ts";
 import type { CsiFrame } from "./protocol.ts";
 import { CsiSimulator } from "./simulator.ts";
 
-const WEB_ROOT = resolve(import.meta.dir, "..", "web");
+const WEB_ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)), "web");
+
+const CONTENT_TYPES: Record<string, string> = {
+  ".css": "text/css; charset=utf-8",
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".svg": "image/svg+xml",
+};
 
 export interface Source {
   readonly rateHz: number;
@@ -103,13 +114,19 @@ async function staticResponse(pathname: string): Promise<Response> {
   if (pathFromRoot.startsWith("..") || isAbsolute(pathFromRoot)) {
     return new Response("Not Found", { status: 404 });
   }
-  const file = Bun.file(candidate);
-  if (!(await file.exists())) {
-    return new Response("Not Found", { status: 404 });
+  let file: Uint8Array;
+  try {
+    file = await readFile(candidate);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return new Response("Not Found", { status: 404 });
+    }
+    throw error;
   }
-  return new Response(file, {
+  return new Response(new Uint8Array(file).buffer, {
     headers: {
       "Cache-Control": candidate.endsWith(".html") ? "no-cache" : "public, max-age=300",
+      "Content-Type": CONTENT_TYPES[extname(candidate)] ?? "application/octet-stream",
     },
   });
 }
@@ -144,6 +161,60 @@ export function createRequestHandler(
     }
     return new Response("Not Found", { status: 404 });
   };
+}
+
+async function startHttpServer(
+  hostname: string,
+  port: number,
+  fetch: (request: Request) => Response | Promise<Response>,
+): Promise<Server> {
+  const server = createServer(async (incoming, outgoing) => {
+    const abort = new AbortController();
+    outgoing.once("close", () => abort.abort());
+    try {
+      const headers = new Headers();
+      for (let index = 0; index < incoming.rawHeaders.length; index += 2) {
+        headers.append(incoming.rawHeaders[index], incoming.rawHeaders[index + 1]);
+      }
+      const body =
+        incoming.method === "GET" || incoming.method === "HEAD"
+          ? undefined
+          : Readable.toWeb(incoming);
+      const request = new Request(
+        `http://${incoming.headers.host ?? `${hostname}:${port}`}${incoming.url}`,
+        {
+          method: incoming.method,
+          headers,
+          body,
+          duplex: body ? "half" : undefined,
+          signal: abort.signal,
+        } as RequestInit,
+      );
+      const response = await fetch(request);
+      outgoing.writeHead(response.status, Object.fromEntries(response.headers));
+      if (incoming.method === "HEAD" || !response.body) {
+        outgoing.end();
+      } else {
+        Readable.fromWeb(response.body as unknown as Parameters<typeof Readable.fromWeb>[0]).pipe(
+          outgoing,
+        );
+      }
+    } catch (error) {
+      console.error(error);
+      if (!outgoing.headersSent) {
+        outgoing.writeHead(500);
+      }
+      outgoing.end("Internal Server Error");
+    }
+  });
+  await new Promise<void>((resolveListen, reject) => {
+    server.once("error", reject);
+    server.listen(port, hostname, () => {
+      server.off("error", reject);
+      resolveListen();
+    });
+  });
+  return server;
 }
 
 interface Arguments {
@@ -272,7 +343,7 @@ export function parseArguments(argv: string[]): Arguments {
 export async function main(): Promise<void> {
   let options: Arguments;
   try {
-    options = parseArguments(Bun.argv.slice(2));
+    options = parseArguments(process.argv.slice(2));
   } catch (error) {
     console.error(error instanceof Error ? error.message : error);
     console.error("Use --help for usage.");
@@ -299,18 +370,14 @@ export async function main(): Promise<void> {
     options.simulate ? "simulation" : "hardware",
   );
   const handler = createRequestHandler(application);
-  const server = Bun.serve({
-    hostname: options.bind,
-    port: options.port,
-    fetch(request) {
-      if (options.verbose && new URL(request.url).pathname !== "/api/events") {
-        console.info(`${request.method} ${new URL(request.url).pathname}`);
-      }
-      return handler(request);
-    },
+  const server = await startHttpServer(options.bind, options.port, (request) => {
+    if (options.verbose && new URL(request.url).pathname !== "/api/events") {
+      console.info(`${request.method} ${new URL(request.url).pathname}`);
+    }
+    return handler(request);
   });
   source.start();
-  console.info(`serving ${application.mode} mode on ${server.url}`);
+  console.info(`serving ${application.mode} mode on http://${options.bind}:${options.port}/`);
 
   let shutdownStarted = false;
   const shutdown = () => {
@@ -319,13 +386,14 @@ export async function main(): Promise<void> {
     }
     shutdownStarted = true;
     source.stop();
-    server.stop(true);
+    server.close();
+    server.closeAllConnections();
   };
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
 }
 
-if (import.meta.main) {
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   main().catch((error) => {
     console.error(error instanceof Error ? error.message : error);
     process.exit(1);

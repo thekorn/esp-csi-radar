@@ -64,6 +64,7 @@
           corePackages = [
             pkgs.bun
             pkgs.codebook
+            pkgs.nodejs_24
             esp-idf
             zig-xtensa
           ];
