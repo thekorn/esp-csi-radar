@@ -692,3 +692,49 @@ test "server serves static assets and returns 404 for unknown routes" {
     try std.testing.expect(std.mem.indexOf(u8, missing_response, "HTTP/1.1 404 Not Found") != null);
     try std.testing.expect(std.mem.endsWith(u8, missing_response, "Not Found"));
 }
+
+test "server health reflects receiver readiness" {
+    var simulation = try application.Application.init(
+        std.testing.io,
+        .simulation,
+        20,
+        80,
+        20,
+        &.{},
+    );
+    const healthy_response = try testServerRequest(
+        &simulation,
+        "GET /api/health HTTP/1.1\r\nHost: test\r\nConnection: close\r\n\r\n",
+    );
+    defer std.testing.allocator.free(healthy_response);
+    try std.testing.expect(std.mem.indexOf(u8, healthy_response, "HTTP/1.1 200 OK") != null);
+    try std.testing.expect(std.mem.endsWith(
+        u8,
+        healthy_response,
+        "{\"ok\":true,\"readyReceivers\":3,\"state\":\"offline\"}",
+    ));
+
+    var serial = try application.Application.init(
+        std.testing.io,
+        .serial,
+        20,
+        80,
+        20,
+        &.{ "/dev/esp32-1", "/dev/esp32-2" },
+    );
+    const unavailable_response = try testServerRequest(
+        &serial,
+        "GET /api/health HTTP/1.1\r\nHost: test\r\nConnection: close\r\n\r\n",
+    );
+    defer std.testing.allocator.free(unavailable_response);
+    try std.testing.expect(std.mem.indexOf(
+        u8,
+        unavailable_response,
+        "HTTP/1.1 503 Service Unavailable",
+    ) != null);
+    try std.testing.expect(std.mem.endsWith(
+        u8,
+        unavailable_response,
+        "{\"ok\":false,\"readyReceivers\":0,\"state\":\"offline\"}",
+    ));
+}

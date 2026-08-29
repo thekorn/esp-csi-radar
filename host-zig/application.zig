@@ -466,6 +466,34 @@ test "application emits the reference JSON schema" {
     try std.testing.expectEqual(@as(usize, 4), parsed.value.object.get("devices").?.array.items.len);
 }
 
+test "application orders serial ports and validates the fleet size" {
+    const ports: []const []const u8 = &.{
+        "/dev/esp32-3",
+        "/dev/esp32-1",
+        "/dev/esp32-2",
+    };
+    var app = try Application.init(std.testing.io, .serial, 20, 80, 20, ports);
+    try std.testing.expectEqual(@as(usize, 3), app.statusCount());
+    try std.testing.expectEqualStrings("/dev/esp32-1", app.statusPort(0));
+    try std.testing.expectEqualStrings("/dev/esp32-2", app.statusPort(1));
+    try std.testing.expectEqualStrings("/dev/esp32-3", app.statusPort(2));
+
+    try std.testing.expectError(
+        error.InvalidSerialPortCount,
+        Application.init(std.testing.io, .serial, 20, 80, 20, &.{"/dev/esp32-1"}),
+    );
+    try std.testing.expectError(
+        error.InvalidSerialPortCount,
+        Application.init(std.testing.io, .serial, 20, 80, 20, &.{
+            "/dev/esp32-1",
+            "/dev/esp32-2",
+            "/dev/esp32-3",
+            "/dev/esp32-4",
+            "/dev/esp32-5",
+        }),
+    );
+}
+
 test "socket records associate a known receiver and update readiness" {
     var app = try Application.init(std.testing.io, .socket, 20, 80, 20, &.{});
     var replacement_count: usize = 0;

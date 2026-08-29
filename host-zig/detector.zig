@@ -401,3 +401,18 @@ test "detector normalizes uniform gain and reset requires calibration" {
     try std.testing.expectEqual(State.offline, detector.snapshot(1.1).state);
     try std.testing.expectEqual(@as(u64, 1), detector.generation);
 }
+
+test "detector accounts for reported drops and sequence gaps" {
+    var detector = try RoomDetector.init(10, 3);
+    var first = testFrame(3, false, 1);
+    first.dropped = 2;
+    detector.ingest(&first, 0);
+    var second = testFrame(7, false, 1);
+    second.dropped = 1;
+    detector.ingest(&second, 0.05);
+
+    const snapshot = detector.snapshot(0.1);
+    try std.testing.expectEqual(@as(usize, 1), snapshot.links.len);
+    try std.testing.expectEqual(@as(u64, 2), snapshot.links.values[0].frames);
+    try std.testing.expectEqual(@as(u64, 6), snapshot.links.values[0].dropped);
+}

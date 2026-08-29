@@ -188,3 +188,17 @@ test "options parse inline values and reject conflicting modes" {
     ));
     try std.testing.expectError(error.InvalidNumber, parse(&.{"--port="}, null));
 }
+
+test "options reject invalid environment and numeric boundaries" {
+    try std.testing.expectError(error.InvalidEnvironmentPort, parse(&.{}, "0"));
+    try std.testing.expectError(error.InvalidEnvironmentPort, parse(&.{}, "65536"));
+    try std.testing.expectError(error.InvalidEnvironmentPort, parse(&.{}, "not-a-port"));
+    try std.testing.expectError(error.InvalidRate, parse(&.{ "--rate", "0" }, null));
+    try std.testing.expectError(error.InvalidRate, parse(&.{ "--rate", "101" }, null));
+    try std.testing.expectError(
+        error.InvalidCalibrationSamples,
+        parse(&.{ "--calibration-samples", "9" }, null),
+    );
+    try std.testing.expectError(error.InvalidPorts, parse(&.{"--ports"}, null));
+    try std.testing.expectError(error.UnknownOption, parse(&.{"--unknown"}, null));
+}

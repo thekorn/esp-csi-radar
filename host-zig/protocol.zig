@@ -210,3 +210,34 @@ test "protocol parses signed CSI and rejects a truncated payload" {
         parseLine("RADAR,CSI,e08cfe599634,7,1234,-47,-94,6,0,8,00ff"),
     );
 }
+
+test "protocol normalizes common MAC syntax and rejects malformed identities" {
+    const normalized = try normalizeMac("E0-8C-FE-59-96-34");
+    try std.testing.expectEqualStrings("e0:8c:fe:59:96:34", &normalized);
+    try std.testing.expectError(error.InvalidMac, normalizeMac("e0:8c:fe:59:96"));
+    try std.testing.expectError(error.InvalidMac, normalizeMac("e0:8c:fe:59:96:3g"));
+    try std.testing.expectError(error.InvalidMac, normalizeMac("e0:8c:fe:59:96:34:00"));
+}
+
+test "protocol rejects invalid readiness and CSI fields" {
+    try std.testing.expectError(
+        error.InvalidReady,
+        parseLine("RADAR,READY,INVALID,e08cfe599634,6,f42dc96bf200"),
+    );
+    try std.testing.expectError(
+        error.InvalidReady,
+        parseLine("RADAR,READY,RX,e08cfe599634,14,f42dc96bf200"),
+    );
+    try std.testing.expectError(
+        error.InvalidPayload,
+        parseLine("RADAR,CSI,e08cfe599634,7,1234,-47,-94,6,0,2,0ff"),
+    );
+    try std.testing.expectError(
+        error.InvalidPayload,
+        parseLine("RADAR,CSI,e08cfe599634,7,1234,-47,-94,6,0,2,00fg"),
+    );
+    try std.testing.expectError(
+        error.InvalidNumber,
+        parseLine("RADAR,CSI,e08cfe599634,7,1234,-47,-94,0,0,2,00ff"),
+    );
+}

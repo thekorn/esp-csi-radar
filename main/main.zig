@@ -130,6 +130,43 @@ fn createProbe(sequence: u32, timestamp_ms: u32) [12]u8 {
     return probe;
 }
 
+fn formatCsiLine(
+    buffer: []u8,
+    mac: [6]u8,
+    sequence: u32,
+    timestamp_us: u32,
+    rssi: i8,
+    noise_floor: i8,
+    channel: u8,
+    dropped: u32,
+    samples: []const i8,
+) ![]const u8 {
+    var mac_buffer: [17]u8 = undefined;
+    const header = try std.fmt.bufPrint(buffer, "RADAR,CSI,{s},{d},{d},{d},{d},{d},{d},{d},", .{
+        formatMac(&mac_buffer, mac),
+        sequence,
+        timestamp_us,
+        rssi,
+        noise_floor,
+        channel,
+        dropped,
+        samples.len,
+    });
+    const line_length = header.len + samples.len * 2 + 1;
+    if (line_length > buffer.len) return error.NoSpaceLeft;
+
+    const digits = "0123456789abcdef";
+    var output_length = header.len;
+    for (samples) |signed_sample| {
+        const sample: u8 = @bitCast(signed_sample);
+        buffer[output_length] = digits[sample >> 4];
+        buffer[output_length + 1] = digits[sample & 0x0f];
+        output_length += 2;
+    }
+    buffer[output_length] = '\n';
+    return buffer[0..line_length];
+}
+
 fn runTransmitter(mac: [6]u8, channel: u8) noreturn {
     if (platform_start_tx() == 0) {
         write("RADAR,ERROR,tx_start_failed\n");
@@ -198,29 +235,19 @@ fn runReceiver(mac: [6]u8, wifi_channel: u8) noreturn {
             continue;
         }
 
-        var mac_buffer: [17]u8 = undefined;
         var line_buffer: [960]u8 = undefined;
-        const header = std.fmt.bufPrint(&line_buffer, "RADAR,CSI,{s},{d},{d},{d},{d},{d},{d},{d},", .{
-            formatMac(&mac_buffer, mac),
+        const line = formatCsiLine(
+            &line_buffer,
+            mac,
             sequence,
             timestamp_us,
             rssi,
             noise_floor,
             channel,
             dropped,
-            length,
-        }) catch continue;
-        var output_length = header.len;
-        const digits = "0123456789abcdef";
-        for (csi_data[0..length]) |signed_sample| {
-            const sample: u8 = @bitCast(signed_sample);
-            line_buffer[output_length] = digits[sample >> 4];
-            line_buffer[output_length + 1] = digits[sample & 0x0f];
-            output_length += 2;
-        }
-        line_buffer[output_length] = '\n';
-        output_length += 1;
-        write(line_buffer[0..output_length]);
+            csi_data[0..length],
+        ) catch continue;
+        write(line);
         sequence +%= 1;
     }
 }
@@ -311,6 +338,38 @@ test "creates the ESP-NOW probe payload in little-endian wire format" {
         0x12, 0x34, 0x56, 0x78,
         0x9a, 0xbc, 0xde, 0xf0,
     }, &probe);
+}
+
+test "formats signed CSI samples for the host protocol" {
+    var buffer: [128]u8 = undefined;
+    const line = try formatCsiLine(
+        &buffer,
+        devices[1].mac,
+        7,
+        1234,
+        -47,
+        -94,
+        6,
+        2,
+        &.{ 0, -1, 127, -128 },
+    );
+    try std.testing.expectEqualStrings(
+        "RADAR,CSI,e0:8c:fe:59:96:34,7,1234,-47,-94,6,2,4,00ff7f80\n",
+        line,
+    );
+
+    var small_buffer: [16]u8 = undefined;
+    try std.testing.expectError(error.NoSpaceLeft, formatCsiLine(
+        &small_buffer,
+        devices[1].mac,
+        7,
+        1234,
+        -47,
+        -94,
+        6,
+        2,
+        &.{ 0, -1, 127, -128 },
+    ));
 }
 
 comptime {
