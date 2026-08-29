@@ -54,8 +54,9 @@ orientation, and keep USB cables from moving during calibration or detection.
 ## Development environment
 
 [Nix flakes](https://nixos.org/) provide ESP-IDF, an Xtensa-capable Zig build,
-Bun, ZLS, nixd, and Codebook. Install the host's locked JavaScript dependencies
-after entering the development environment:
+Bun, ZLS, nixd, and Codebook. Install the locked JavaScript dependencies used
+by the retained TypeScript reference implementation and its tests after
+entering the development environment:
 
 ```sh
 nix develop
@@ -74,6 +75,7 @@ nix develop .#setup -c bun run format:check
 Other verification commands can also be run without entering a shell:
 
 ```sh
+nix develop .#setup -c zig build host
 nix develop .#setup -c zig build test
 nix develop .#setup -c bun test
 nix develop .#setup -c idf.py build
@@ -93,7 +95,7 @@ The simulator exercises the detector, HTTP API, server-sent events, and every
 visualization state. It alternates between an empty and changed radio field:
 
 ```sh
-nix develop .#setup -c bun run host/server.ts --simulate --bind 0.0.0.0
+nix develop .#setup -c zig build run-host -- --simulate --bind 0.0.0.0
 ```
 
 Open `http://localhost:8080` when running locally. The first empty-room
@@ -109,9 +111,9 @@ Firmware configuration comes from four build-time environment variables:
 
 - `ESP_NETWORK_NAME` — 2.4 GHz Wi-Fi network name;
 - `ESP_NETWORK_SECRET` — WPA password, from 8 through 64 bytes;
-- `ESP_SERVER_HOST` — DNS name or IPv4 address of the Bun server as reachable
+- `ESP_SERVER_HOST` — DNS name or IPv4 address of the Zig server as reachable
   from the ESP network, without `http://`, `ws://`, or a path;
-- `ESP_SERVER_PORT` — TCP port from 1 through 65535 on which the Bun server will
+- `ESP_SERVER_PORT` — TCP port from 1 through 65535 on which the Zig server will
   listen.
 
 No additional variable is needed for plain WebSockets on a trusted LAN. The
@@ -138,16 +140,22 @@ rediscover all boards.
 
 ## Run the server
 
-The real-hardware server runs under Node.js 24. Bun remains the package manager
-and test runner, but its Linux N-API implementation does not provide the libuv
-polling APIs required by `serialport`.
+Build the standalone Zig host binary with the dashboard assets embedded:
+
+```sh
+nix develop .#setup -c zig build host
+```
+
+The binary is installed at `zig-out/bin/esp-csi-radar-host`. The previous
+Node/TypeScript host remains unchanged under `host/` as an executable reference
+implementation and can be run with `bun run start:reference -- [options]`.
 
 Socket mode is the normal detached deployment. It listens on all interfaces by
 default, using `ESP_SERVER_PORT` when `--port` is omitted, and serves the device
 WebSocket, dashboard, and HTTP API on that one port:
 
 ```sh
-nix develop .#setup -c node host/server.ts --socket
+nix develop .#setup -c zig build run-host -- --socket
 ```
 
 Ensure the server address in `ESP_SERVER_HOST` resolves from the ESP network and
@@ -158,7 +166,7 @@ Serial mode remains available as a passive diagnostic and fallback transport
 when the boards are connected by USB. It does not provision or control them:
 
 ```sh
-nix develop .#setup -c node host/server.ts --serial \
+nix develop .#setup -c zig build run-host -- --serial \
   --ports /dev/esp32-1 /dev/esp32-2 /dev/esp32-3 /dev/esp32-4
 ```
 
@@ -169,7 +177,6 @@ For the persistent service used on `thekorn-server-2`, place the checkout at
 `~/.local/share/esp-csi-radar`, install the tracked user unit, and start it:
 
 ```sh
-nix develop .#setup -c bun install --frozen-lockfile
 mkdir -p ~/.config/systemd/user
 cp deploy/esp-csi-radar.service ~/.config/systemd/user/
 systemctl --user daemon-reload
@@ -237,7 +244,8 @@ occupied, empty, and nuisance data before relying on its output.
 ## Repository layout
 
 - `main/` — Zig application and thin ESP-IDF C adapter;
-- `host/` — Bun/TypeScript serial protocol, detector, simulator, and HTTP service;
+- `host-zig/` — primary Zig protocol, detector, device ingestion, simulator, and HTTP service;
+- `host/` — retained Node/TypeScript host reference implementation and tests;
 - `web/` — dependency-free responsive visualization;
 - `Caddyfile` — live `/radar/` path proxy configuration for the hardware host;
 - `scripts/flash-all.sh` — ESP-IDF-driven four-board flashing;

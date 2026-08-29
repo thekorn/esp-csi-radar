@@ -28,11 +28,14 @@ jobs:
       - name: Evaluate flake
         run: nix flake check --no-build
 
-      - name: Check firmware formatting
-        run: nix develop .#setup --command zig fmt --check build.zig main/main.zig
+      - name: Check Zig formatting
+        run: nix develop .#setup --command zig fmt --check build.zig main/main.zig host-zig
 
       - name: Run Zig tests
         run: nix develop .#setup --command zig build test
+
+      - name: Build Zig host
+        run: nix develop .#setup --command zig build host
 
       - name: Install host dependencies
         run: nix develop .#setup --command bun install --frozen-lockfile
