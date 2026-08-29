@@ -358,7 +358,10 @@ pub const Application = struct {
                         &status.error_buffer,
                         "expected {s}, received {s}",
                         .{ status.mac, hello.mac },
-                    ) catch "device identity does not match its assigned port";
+                    ) catch {
+                        status.setError("device identity does not match its assigned port");
+                        return;
+                    };
                     status.error_len = text.len;
                     return;
                 }
