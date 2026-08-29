@@ -1,0 +1,7 @@
+services:
+  radar-simulator:
+    command: python -m host.server --simulate --bind 0.0.0.0 --port "$PORT"
+    health: /api/health
+    portal:
+      title: ESP CSI room radar
+      description: Live four-device room sensing visualization in simulation mode.

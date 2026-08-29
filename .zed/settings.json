@@ -12,5 +12,11 @@
         "arguments": ["develop", "--command", "zls"],
       },
     },
+    "nixd": {
+      "binary": {
+        "path": "nix",
+        "arguments": ["develop", "--command", "nixd"],
+      },
+    },
   },
 }

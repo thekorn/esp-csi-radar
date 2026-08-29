@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v22
+
+      - name: Enable Nix cache
+        uses: DeterminateSystems/magic-nix-cache-action@v14
+
+      - name: Evaluate flake
+        run: nix flake check --no-build
+
+      - name: Check formatting
+        run: nix develop .#setup --command zig fmt --check build.zig main/main.zig
+
+      - name: Run Zig tests
+        run: nix develop .#setup --command zig build test
+
+      - name: Run host tests
+        run: nix develop .#setup --command python -m unittest discover -s host/tests -v
+
+      - name: Spell check
+        run: nix develop .#setup --command codebook-lsp lint --unique -s .
+
+      - name: Build firmware
+        run: nix develop .#setup --command idf.py build

@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+sudo systemctl start nix-daemon.socket
+sudo chmod 0711 /nix/var/nix/daemon-socket
+sudo ln -sfn /nix/var/nix/profiles/default/bin/nix /usr/local/bin/nix
+nix flake --help >/dev/null
