@@ -261,7 +261,6 @@ fn eventStream(
             .keep_alive = false,
             .extra_headers = &.{
                 .{ .name = "cache-control", .value = "no-store" },
-                .{ .name = "connection", .value = "keep-alive" },
                 .{ .name = "content-type", .value = "text/event-stream" },
             },
         },
