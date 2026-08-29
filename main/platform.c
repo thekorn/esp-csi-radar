@@ -252,6 +252,7 @@ static void csi_receive(void *context, wifi_csi_info_t *info)
 {
     (void)context;
     if (info == NULL || info->buf == NULL || info->len == 0 ||
+        info->rx_ctrl.sig_mode != 1 ||
         memcmp(info->mac, transmitter_mac, sizeof(transmitter_mac)) != 0) {
         return;
     }
@@ -348,5 +349,6 @@ uint64_t platform_millis(void)
 
 void platform_delay_ms(uint32_t delay_ms)
 {
-    vTaskDelay(pdMS_TO_TICKS(delay_ms));
+    TickType_t ticks = pdMS_TO_TICKS(delay_ms);
+    vTaskDelay(ticks > 0 ? ticks : 1);
 }

@@ -205,8 +205,11 @@ This replaces the complete live Caddy configuration, so review the `Caddyfile`
 before applying it if the host's other routes have changed. The host starts
 Caddy from a NixOS-generated configuration rather than its autosave. Reapply
 this command after a Caddy restart, reload, or NixOS switch until the route is
-added to the host's declarative NixOS configuration. The ESP devices connect
-directly to `ESP_SERVER_PORT`; they do not use this HTTPS dashboard proxy.
+added to the host's declarative NixOS configuration. The same configuration
+proxies plain `ws://thekorn-server-2.home:80/device` to the server so the ESP
+devices can use port 80 without exposing port 8080 through the firewall. Other
+HTTP requests redirect to HTTPS; the device route stays on plain HTTP because
+the firmware does not support TLS.
 
 Leave the room empty while the initial baseline reaches 100%. Use **Calibrate**
 in the web page any time sensor placement, furniture, or the RF channel
