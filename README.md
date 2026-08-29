@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="docs/logo.png" alt="ESP CSI room radar logo" width="220">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/logo.png">
+    <img src="docs/logo-light.png" alt="ESP CSI room radar logo" width="220">
+  </picture>
 </p>
 
 # ESP CSI room radar
