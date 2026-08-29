@@ -55,6 +55,7 @@ const DeviceStatus = struct {
     error_len: usize = 0,
     malformed: u64 = 0,
     socket_generation: u64 = 0,
+    socket_owner: ?*SocketOwner = null,
 
     fn setChip(status: *DeviceStatus, chip_text: []const u8) void {
         status.chip_len = @min(chip_text.len, status.chip_buffer.len);
@@ -118,6 +119,15 @@ const ApplicationSnapshot = struct {
 pub const SocketIdentity = struct {
     index: usize,
     generation: u64,
+};
+
+pub const SocketOwner = struct {
+    context: *anyopaque,
+    replace_fn: *const fn (context: *anyopaque) void,
+
+    fn replace(owner: *SocketOwner) void {
+        owner.replace_fn(owner.context);
+    }
 };
 
 pub const SocketMessageError = error{
@@ -257,6 +267,7 @@ pub const Application = struct {
     pub fn applySocketMessage(
         app: *Application,
         identity: *?SocketIdentity,
+        owner: *SocketOwner,
         message: *const protocol.Message,
     ) SocketMessageError!void {
         app.mutex.lockUncancelable(app.io);
@@ -278,6 +289,11 @@ pub const Application = struct {
                 status.connected = true;
                 status.clearError();
                 identity.* = .{ .index = index, .generation = status.socket_generation };
+                const previous_owner = status.socket_owner;
+                status.socket_owner = owner;
+                if (previous_owner) |previous| {
+                    if (previous != owner) previous.replace();
+                }
             }
         }
 
@@ -298,12 +314,18 @@ pub const Application = struct {
         status.setError(message);
     }
 
-    pub fn disconnectSocket(app: *Application, identity: ?SocketIdentity) void {
+    pub fn disconnectSocket(
+        app: *Application,
+        identity: ?SocketIdentity,
+        owner: *SocketOwner,
+    ) void {
         const known = identity orelse return;
         app.mutex.lockUncancelable(app.io);
         defer app.mutex.unlock(app.io);
         const status = &app.statuses[known.index];
         if (status.socket_generation != known.generation) return;
+        if (status.socket_owner != owner) return;
+        status.socket_owner = null;
         status.connected = false;
         status.ready = false;
     }
@@ -446,17 +468,57 @@ test "application emits the reference JSON schema" {
 
 test "socket records associate a known receiver and update readiness" {
     var app = try Application.init(std.testing.io, .socket, 20, 80, 20, &.{});
+    var replacement_count: usize = 0;
+    var owner = testSocketOwner(&replacement_count);
     var identity: ?SocketIdentity = null;
     const hello = (try protocol.parseLine("RADAR,HELLO,e08cfe599634,esp32\n")).?;
-    try app.applySocketMessage(&identity, &hello);
+    try app.applySocketMessage(&identity, &owner, &hello);
     const ready = (try protocol.parseLine("RADAR,READY,RX,e08cfe599634,6,f42dc96bf200\n")).?;
-    try app.applySocketMessage(&identity, &ready);
+    try app.applySocketMessage(&identity, &owner, &ready);
 
     const health = try app.healthJson(std.testing.allocator);
     defer std.testing.allocator.free(health.bytes);
     try std.testing.expect(health.healthy);
     try std.testing.expectError(error.UnknownIdentity, app.applySocketMessage(
         &identity,
+        &owner,
         &(try protocol.parseLine("RADAR,HELLO,001122334455,esp32\n")).?,
     ));
+    try std.testing.expectEqual(@as(usize, 0), replacement_count);
+}
+
+test "socket reconnect replaces the old owner without allowing its disconnect to clear state" {
+    var app = try Application.init(std.testing.io, .socket, 20, 80, 20, &.{});
+    var first_replacement_count: usize = 0;
+    var second_replacement_count: usize = 0;
+    var first_owner = testSocketOwner(&first_replacement_count);
+    var second_owner = testSocketOwner(&second_replacement_count);
+    var first_identity: ?SocketIdentity = null;
+    var second_identity: ?SocketIdentity = null;
+    const hello = (try protocol.parseLine("RADAR,HELLO,e08cfe599634,esp32\n")).?;
+    const ready = (try protocol.parseLine("RADAR,READY,RX,e08cfe599634,6,f42dc96bf200\n")).?;
+
+    try app.applySocketMessage(&first_identity, &first_owner, &hello);
+    try app.applySocketMessage(&first_identity, &first_owner, &ready);
+    try app.applySocketMessage(&second_identity, &second_owner, &hello);
+    try app.applySocketMessage(&second_identity, &second_owner, &ready);
+
+    try std.testing.expectEqual(@as(usize, 1), first_replacement_count);
+    try std.testing.expectEqual(@as(usize, 0), second_replacement_count);
+    app.disconnectSocket(first_identity, &first_owner);
+    const health = try app.healthJson(std.testing.allocator);
+    defer std.testing.allocator.free(health.bytes);
+    try std.testing.expect(health.healthy);
+}
+
+fn testSocketOwner(replacement_count: *usize) SocketOwner {
+    return .{
+        .context = replacement_count,
+        .replace_fn = struct {
+            fn replace(context: *anyopaque) void {
+                const count: *usize = @ptrCast(@alignCast(context));
+                count.* += 1;
+            }
+        }.replace,
+    };
 }

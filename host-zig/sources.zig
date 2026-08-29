@@ -46,10 +46,16 @@ fn serialThread(app: *application.Application, index: usize, baud: u32) void {
 fn readSerial(app: *application.Application, index: usize, file: std.Io.File) void {
     var read_buffer: [1200]u8 = undefined;
     var file_reader = file.readerStreaming(app.io, &read_buffer);
+    readSerialRecords(app, index, &file_reader.interface);
+}
+
+fn readSerialRecords(app: *application.Application, index: usize, reader: *std.Io.Reader) void {
     while (true) {
-        const line = file_reader.interface.takeDelimiter('\n') catch |err| {
+        const line = reader.takeDelimiter('\n') catch |err| {
             if (err == error.StreamTooLong) {
                 app.malformedRecord(index, "record exceeds 1200 bytes");
+                _ = reader.discardDelimiterInclusive('\n') catch return;
+                continue;
             }
             return;
         } orelse return;
@@ -180,4 +186,31 @@ test "simulator random source is deterministic" {
     var left: SeededRandom = .{ .seed = 0xc51 };
     var right: SeededRandom = .{ .seed = 0xc51 };
     for (0..10) |_| try std.testing.expectEqual(left.next(), right.next());
+}
+
+test "serial reader discards an overlong record and continues with the next line" {
+    const ports: []const []const u8 = &.{ "/dev/esp32-1", "/dev/esp32-2" };
+    var app = try application.Application.init(std.testing.io, .serial, 20, 80, 20, ports);
+    app.markSerialConnected(1);
+
+    const ready = "RADAR,READY,RX,e08cfe599634,6,f42dc96bf200\n";
+    var input_buffer: [1400]u8 = @splat('x');
+    input_buffer[1300] = '\n';
+    @memcpy(input_buffer[1301..][0..ready.len], ready);
+    var source: std.Io.Reader = .fixed(input_buffer[0 .. 1301 + ready.len]);
+    var read_buffer: [1200]u8 = undefined;
+    var reader = source.limited(.unlimited, &read_buffer);
+
+    readSerialRecords(&app, 1, &reader.interface);
+
+    const health = try app.healthJson(std.testing.allocator);
+    defer std.testing.allocator.free(health.bytes);
+    try std.testing.expect(health.healthy);
+
+    const snapshot = try app.snapshotJson(std.testing.allocator);
+    defer std.testing.allocator.free(snapshot);
+    var parsed = try std.json.parseFromSlice(std.json.Value, std.testing.allocator, snapshot, .{});
+    defer parsed.deinit();
+    const devices = parsed.value.object.get("devices").?.array.items;
+    try std.testing.expectEqual(@as(i64, 1), devices[1].object.get("malformed").?.integer);
 }

@@ -67,6 +67,16 @@ pub fn build(b: *std.Build) void {
         test_step.dependOn(&run_host_tests.step);
     }
 
+    const server_test_module = b.createModule(.{
+        .root_source_file = b.path("host-zig/server.zig"),
+        .target = b.graph.host,
+        .optimize = optimize,
+    });
+    server_test_module.addImport("assets", asset_module);
+    const server_tests = b.addTest(.{ .root_module = server_test_module });
+    const run_server_tests = b.addRunArtifact(server_tests);
+    test_step.dependOn(&run_server_tests.step);
+
     const target = b.resolveTargetQuery(.{
         .cpu_arch = .xtensa,
         .os_tag = .freestanding,
