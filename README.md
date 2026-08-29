@@ -1,10 +1,3 @@
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/logo.png">
-    <img src="docs/logo-light.png" alt="ESP CSI room radar logo" width="220">
-  </picture>
-</p>
-
 # ESP CSI room radar
 
 ![ESP CSI room radar dashboard showing live room presence detection](docs/dashboard.png)
@@ -171,3 +164,7 @@ occupied, empty, and nuisance data before relying on its output.
 - `scripts/flash-all.sh` — ESP-IDF-driven four-board flashing;
 - `flake.nix` — pinned development toolchain;
 - `codebook.toml` — project-local spelling dictionary.
+
+## References
+
+- [Espressif ESP-CSI](https://github.com/espressif/esp-csi)
