@@ -49,7 +49,9 @@ fi
 cat >> "$HOME/.bash_profile" <<EOF
 
 $profile_marker
-if [[ -z "\${IN_NIX_SHELL:-}" && "\${PWD}" == "$repo_root" ]]; then
+if [[ -z "\${IN_NIX_SHELL:-}" &&
+      -z "\${AMP_PORTAL_PROXY_SOURCE:-}" &&
+      "\${PWD}" == "$repo_root" ]]; then
   eval "\$(nix print-dev-env 'path:$repo_root')"
 fi
 EOF
