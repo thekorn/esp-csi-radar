@@ -1,4 +1,10 @@
+<p align="center">
+  <img src="docs/logo.png" alt="ESP CSI room radar logo" width="220">
+</p>
+
 # ESP CSI room radar
+
+![ESP CSI room radar dashboard showing live room presence detection](docs/dashboard.png)
 
 A four-device room sensing demo that detects changes caused by people without
 using a camera or microphone. One ESP32 broadcasts fixed-rate ESP-NOW probes;
