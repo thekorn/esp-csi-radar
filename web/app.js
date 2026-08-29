@@ -33,7 +33,8 @@ const stateCopy = {
   calibrating: {
     kicker: "Baseline in progress",
     title: "Learning the room",
-    description: "Measuring the empty-room radio fingerprint. Keep the sensing area clear and still.",
+    description:
+      "Measuring the empty-room radio fingerprint. Keep the sensing area clear and still.",
   },
   clear: {
     kicker: "No significant change",
@@ -47,12 +48,13 @@ const stateCopy = {
   },
 };
 
-const escapeHtml = (value) => String(value ?? "—")
-  .replaceAll("&", "&amp;")
-  .replaceAll("<", "&lt;")
-  .replaceAll(">", "&gt;")
-  .replaceAll('"', "&quot;")
-  .replaceAll("'", "&#039;");
+const escapeHtml = (value) =>
+  String(value ?? "—")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 
 const formatUptime = (seconds) => {
   const total = Math.max(0, Math.round(seconds || 0));
@@ -89,18 +91,22 @@ function renderSparkline(canvas, history, active) {
   gradient.addColorStop(0, `rgba(${color}, .20)`);
   gradient.addColorStop(1, `rgba(${color}, 0)`);
   const points = history.map((value, index) => ({
-    x: history.length === 1 ? width : index * width / (history.length - 1),
-    y: height - Math.min(4, Math.max(0, value)) / 4 * height,
+    x: history.length === 1 ? width : (index * width) / (history.length - 1),
+    y: height - (Math.min(4, Math.max(0, value)) / 4) * height,
   }));
   context.beginPath();
-  points.forEach((point, index) => index ? context.lineTo(point.x, point.y) : context.moveTo(point.x, point.y));
+  points.forEach((point, index) =>
+    index ? context.lineTo(point.x, point.y) : context.moveTo(point.x, point.y),
+  );
   context.lineTo(width, height);
   context.lineTo(0, height);
   context.closePath();
   context.fillStyle = gradient;
   context.fill();
   context.beginPath();
-  points.forEach((point, index) => index ? context.lineTo(point.x, point.y) : context.moveTo(point.x, point.y));
+  points.forEach((point, index) =>
+    index ? context.lineTo(point.x, point.y) : context.moveTo(point.x, point.y),
+  );
   context.strokeStyle = `rgb(${color})`;
   context.lineWidth = 1.5;
   context.stroke();
@@ -110,7 +116,9 @@ function renderLinks(links) {
   if (!links.length) {
     elements.linkCards.innerHTML = '<div class="empty-links">Waiting for CSI frames…</div>';
   } else {
-    elements.linkCards.innerHTML = links.map((link, index) => `
+    elements.linkCards.innerHTML = links
+      .map(
+        (link, index) => `
       <article class="link-card ${link.active ? "active" : ""}" data-receiver="${escapeHtml(link.receiver)}">
         <div class="link-card-head">
           <div class="link-identity">
@@ -126,7 +134,9 @@ function renderLinks(links) {
           <span>Lost <b>${Number(link.dropped).toLocaleString()}</b></span>
         </div>
       </article>
-    `).join("");
+    `,
+      )
+      .join("");
     elements.linkCards.querySelectorAll(".link-card").forEach((card, index) => {
       renderSparkline(card.querySelector("canvas"), links[index].history, links[index].active);
     });
@@ -135,12 +145,16 @@ function renderLinks(links) {
   document.querySelectorAll(".radio-link").forEach((linkElement, index) => {
     const link = links[index];
     linkElement.classList.toggle("hot", Boolean(link?.active));
-    linkElement.style.opacity = link ? String(Math.max(.35, Math.min(1, .35 + link.score * .3))) : ".15";
+    linkElement.style.opacity = link
+      ? String(Math.max(0.35, Math.min(1, 0.35 + link.score * 0.3)))
+      : ".15";
   });
 }
 
 function renderDevices(devices) {
-  elements.deviceList.innerHTML = devices.map((device, index) => `
+  elements.deviceList.innerHTML = devices
+    .map(
+      (device, index) => `
     <div class="device ${device.ready ? "ready" : ""}" title="${escapeHtml(device.error || "Device ready")}">
       <span class="device-indicator"></span>
       <span>
@@ -149,7 +163,9 @@ function renderDevices(devices) {
       </span>
       <span class="device-role">${escapeHtml(device.role)}</span>
     </div>
-  `).join("");
+  `,
+    )
+    .join("");
 }
 
 function render(state) {
@@ -188,7 +204,7 @@ async function loadInitialState() {
     const response = await fetch("api/state", { cache: "no-store" });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     render(await response.json());
-  } catch (error) {
+  } catch {
     elements.connectionLabel.textContent = "Server unavailable";
   }
 }

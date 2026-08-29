@@ -61,25 +61,29 @@
               runHook postInstall
             '';
           };
-          python = pkgs.python3.withPackages (packages: [ packages.pyserial ]);
           corePackages = [
+            pkgs.bun
             pkgs.codebook
             esp-idf
-            python
             zig-xtensa
           ];
+          nativeLibraryPath = pkgs.lib.makeLibraryPath (
+            pkgs.lib.optional pkgs.stdenv.hostPlatform.isLinux pkgs.stdenv.cc.cc.lib
+          );
         in
         {
           setup = pkgs.mkShell {
             packages = corePackages;
+            LD_LIBRARY_PATH = nativeLibraryPath;
           };
           default = pkgs.mkShell {
             packages = corePackages ++ [
               pkgs.nixd
               zls.packages.${system}.zls
             ];
+            LD_LIBRARY_PATH = nativeLibraryPath;
             shellHook = ''
-              echo "ESP32 CSI environment: ESP-IDF $(idf.py --version | sed 's/^ESP-IDF //'), Zig $(zig version)"
+              echo "ESP32 CSI environment: ESP-IDF $(idf.py --version | sed 's/^ESP-IDF //'), Zig $(zig version), Bun $(bun --version)"
             '';
           };
         });

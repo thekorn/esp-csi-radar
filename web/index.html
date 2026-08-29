@@ -1,11 +1,11 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#091816">
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#091816" />
     <title>Room Radar · ESP CSI</title>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css" />
     <script src="app.js" defer></script>
   </head>
   <body data-state="offline">
@@ -14,9 +14,7 @@
 
     <header class="topbar">
       <a class="brand" href="./" aria-label="Room Radar home">
-        <span class="brand-mark" aria-hidden="true">
-          <i></i><i></i><i></i>
-        </span>
+        <span class="brand-mark" aria-hidden="true"> <i></i><i></i><i></i> </span>
         <span>
           <strong>ROOM RADAR</strong>
           <small>ESP CSI SENSING</small>
@@ -33,7 +31,9 @@
     <main>
       <section class="hero panel" aria-live="polite">
         <div class="hero-copy">
-          <div class="eyebrow"><span class="state-dot"></span><span id="state-kicker">Waiting for sensors</span></div>
+          <div class="eyebrow">
+            <span class="state-dot"></span><span id="state-kicker">Waiting for sensors</span>
+          </div>
           <h1 id="state-title">Radar offline</h1>
           <p id="state-description">Connect the ESP32 array to begin room sensing.</p>
           <div class="hero-metadata">
@@ -75,36 +75,84 @@
           </div>
 
           <div class="room-map" id="room-map">
-            <svg viewBox="0 0 720 440" role="img" aria-labelledby="room-map-title room-map-description">
+            <svg
+              viewBox="0 0 720 440"
+              role="img"
+              aria-labelledby="room-map-title room-map-description"
+            >
               <title id="room-map-title">ESP CSI room sensing links</title>
-              <desc id="room-map-description">One transmitter at the top sends radio probes to three receivers around the room.</desc>
+              <desc id="room-map-description">
+                One transmitter at the top sends radio probes to three receivers around the room.
+              </desc>
               <defs>
                 <pattern id="floor-grid" width="32" height="32" patternUnits="userSpaceOnUse">
-                  <path d="M 32 0 L 0 0 0 32" fill="none" stroke="currentColor" stroke-width="0.7"/>
+                  <path
+                    d="M 32 0 L 0 0 0 32"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="0.7"
+                  />
                 </pattern>
                 <radialGradient id="field-glow">
-                  <stop offset="0" stop-color="currentColor" stop-opacity=".20"/>
-                  <stop offset="1" stop-color="currentColor" stop-opacity="0"/>
+                  <stop offset="0" stop-color="currentColor" stop-opacity=".20" />
+                  <stop offset="1" stop-color="currentColor" stop-opacity="0" />
                 </radialGradient>
               </defs>
-              <rect class="floor" x="20" y="20" width="680" height="400" rx="20"/>
-              <rect class="floor-grid" x="20" y="20" width="680" height="400" rx="20" fill="url(#floor-grid)"/>
-              <ellipse class="field-glow" cx="360" cy="225" rx="240" ry="150" fill="url(#field-glow)"/>
-              <g class="radio-link" data-link="0"><line x1="360" y1="75" x2="110" y2="360"/><circle cx="238" cy="214" r="5"/></g>
-              <g class="radio-link" data-link="1"><line x1="360" y1="75" x2="360" y2="375"/><circle cx="360" cy="232" r="5"/></g>
-              <g class="radio-link" data-link="2"><line x1="360" y1="75" x2="610" y2="360"/><circle cx="482" cy="214" r="5"/></g>
+              <rect class="floor" x="20" y="20" width="680" height="400" rx="20" />
+              <rect
+                class="floor-grid"
+                x="20"
+                y="20"
+                width="680"
+                height="400"
+                rx="20"
+                fill="url(#floor-grid)"
+              />
+              <ellipse
+                class="field-glow"
+                cx="360"
+                cy="225"
+                rx="240"
+                ry="150"
+                fill="url(#field-glow)"
+              />
+              <g class="radio-link" data-link="0">
+                <line x1="360" y1="75" x2="110" y2="360" />
+                <circle cx="238" cy="214" r="5" />
+              </g>
+              <g class="radio-link" data-link="1">
+                <line x1="360" y1="75" x2="360" y2="375" />
+                <circle cx="360" cy="232" r="5" />
+              </g>
+              <g class="radio-link" data-link="2">
+                <line x1="360" y1="75" x2="610" y2="360" />
+                <circle cx="482" cy="214" r="5" />
+              </g>
               <g class="person-marker" transform="translate(360 220)">
-                <circle class="person-aura" r="56"/>
-                <circle class="person-head" cy="-15" r="12"/>
-                <path class="person-body" d="M-24 30c3-28 11-40 24-40s21 12 24 40z"/>
+                <circle class="person-aura" r="56" />
+                <circle class="person-head" cy="-15" r="12" />
+                <path class="person-body" d="M-24 30c3-28 11-40 24-40s21 12 24 40z" />
               </g>
               <g class="device-node tx-node" transform="translate(360 75)">
-                <circle r="27"/><path d="M-8 6a12 12 0 0 1 16 0M-14-1a21 21 0 0 1 28 0M0 12h.1"/>
+                <circle r="27" />
+                <path d="M-8 6a12 12 0 0 1 16 0M-14-1a21 21 0 0 1 28 0M0 12h.1" />
                 <text y="43">TX · 01</text>
               </g>
-              <g class="device-node rx-node" transform="translate(110 360)"><circle r="23"/><text y="5">R1</text><text y="40">RX · 02</text></g>
-              <g class="device-node rx-node" transform="translate(360 375)"><circle r="23"/><text y="5">R2</text><text y="40">RX · 03</text></g>
-              <g class="device-node rx-node" transform="translate(610 360)"><circle r="23"/><text y="5">R3</text><text y="40">RX · 04</text></g>
+              <g class="device-node rx-node" transform="translate(110 360)">
+                <circle r="23" />
+                <text y="5">R1</text>
+                <text y="40">RX · 02</text>
+              </g>
+              <g class="device-node rx-node" transform="translate(360 375)">
+                <circle r="23" />
+                <text y="5">R2</text>
+                <text y="40">RX · 03</text>
+              </g>
+              <g class="device-node rx-node" transform="translate(610 360)">
+                <circle r="23" />
+                <text y="5">R3</text>
+                <text y="40">RX · 04</text>
+              </g>
             </svg>
             <div id="calibration-overlay" class="calibration-overlay" hidden>
               <span>Learning empty room</span>
@@ -161,7 +209,8 @@
 
       <p class="method-note">
         <span>ⓘ</span>
-        This demo infers occupancy from changes in Wi-Fi channel amplitude across three bistatic links. It detects environmental change—not identity—and sends no camera or audio data.
+        This demo infers occupancy from changes in Wi-Fi channel amplitude across three bistatic
+        links. It detects environmental change—not identity—and sends no camera or audio data.
       </p>
     </main>
 
@@ -170,10 +219,15 @@
         <button class="dialog-close" value="cancel" aria-label="Close">×</button>
         <span class="dialog-icon">◎</span>
         <h2>Calibrate the empty room?</h2>
-        <p>The next few seconds become the new baseline. Leave the sensing area and keep sensors and furniture still.</p>
+        <p>
+          The next few seconds become the new baseline. Leave the sensing area and keep sensors and
+          furniture still.
+        </p>
         <div class="dialog-actions">
           <button class="secondary-button" value="cancel">Cancel</button>
-          <button id="start-calibration" class="primary-button" value="default">Start calibration</button>
+          <button id="start-calibration" class="primary-button" value="default">
+            Start calibration
+          </button>
         </div>
       </form>
     </dialog>

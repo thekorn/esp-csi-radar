@@ -39,19 +39,19 @@ nix --version
 nix store info
 time_step "Realizing the development environment" \
   nix develop "path:$repo_root#setup" --command true
+time_step "Installing Bun dependencies" \
+  nix develop "path:$repo_root#setup" --command bun install --frozen-lockfile
 
 profile_marker="# esp-csi-radar Nix development shell"
-if ! grep -Fqx "$profile_marker" "$HOME/.bash_profile" 2>/dev/null; then
-  cat >> "$HOME/.bash_profile" <<EOF
+if grep -Fqx "$profile_marker" "$HOME/.bash_profile" 2>/dev/null; then
+  sed -i "/^$profile_marker$/,/^fi$/d" "$HOME/.bash_profile"
+fi
+cat >> "$HOME/.bash_profile" <<EOF
 
 $profile_marker
 if [[ -z "\${IN_NIX_SHELL:-}" && "\${PWD}" == "$repo_root" ]]; then
   eval "\$(nix print-dev-env 'path:$repo_root')"
 fi
 EOF
-else
-  sed -i "s|nix print-dev-env '$repo_root'|nix print-dev-env 'path:$repo_root'|" \
-    "$HOME/.bash_profile"
-fi
 
 echo "[setup] Complete"

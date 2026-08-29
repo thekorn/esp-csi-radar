@@ -1,0 +1,22 @@
+{
+  "name": "esp-csi-radar",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "format": "bun node_modules/oxfmt/bin/oxfmt host web package.json tsconfig.json .oxlintrc.json .oxfmtrc.json",
+    "format:check": "bun node_modules/oxfmt/bin/oxfmt --check host web package.json tsconfig.json .oxlintrc.json .oxfmtrc.json",
+    "lint": "bun node_modules/oxlint/bin/oxlint host web --deny-warnings",
+    "start": "bun run host/server.ts",
+    "test": "bun test host/tests",
+    "typecheck": "bun node_modules/typescript/bin/tsc --noEmit"
+  },
+  "dependencies": {
+    "serialport": "^13.0.0"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.2.22",
+    "oxfmt": "^0.65.0",
+    "oxlint": "^1.80.0",
+    "typescript": "^7"
+  }
+}

@@ -28,14 +28,26 @@ jobs:
       - name: Evaluate flake
         run: nix flake check --no-build
 
-      - name: Check formatting
+      - name: Check firmware formatting
         run: nix develop .#setup --command zig fmt --check build.zig main/main.zig
 
       - name: Run Zig tests
         run: nix develop .#setup --command zig build test
 
+      - name: Install host dependencies
+        run: nix develop .#setup --command bun install --frozen-lockfile
+
+      - name: Required pre-commit type check
+        run: nix develop .#setup --command bun run typecheck
+
+      - name: Required pre-commit lint check
+        run: nix develop .#setup --command bun run lint
+
+      - name: Required pre-commit format check
+        run: nix develop .#setup --command bun run format:check
+
       - name: Run host tests
-        run: nix develop .#setup --command python -m unittest discover -s host/tests -v
+        run: nix develop .#setup --command bun test
 
       - name: Spell check
         run: nix develop .#setup --command codebook-lsp lint --unique -s .
