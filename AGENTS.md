@@ -8,8 +8,9 @@
 - Keep firmware behavior in Zig. `main/main.zig` owns command parsing,
   role behavior, probe creation, and serial framing. Keep
   `main/platform.c` limited to ESP-IDF and FreeRTOS interoperability.
-- Keep sensing and occupancy decisions in the Node.js/TypeScript code under
-  `host/`. The browser only renders state received from the host API.
+- Keep sensing and occupancy decisions in the Zig code under `host-zig/`.
+  Preserve `host/` as the Node.js/TypeScript reference implementation. The
+  browser only renders state received from the host API.
 - Put durable ESP-IDF settings in `sdkconfig.defaults`. Treat `sdkconfig`,
   `build/`, `managed_components/`, and `zig-out/` as generated state.
 
