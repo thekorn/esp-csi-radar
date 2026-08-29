@@ -1,6 +1,6 @@
 services:
   radar-simulator:
-    command: bun run host/server.ts --simulate --bind 0.0.0.0 --port "$PORT"
+    command: env -u LD_LIBRARY_PATH nix develop .#setup --command node host/server.ts --simulate --bind 0.0.0.0 --port "$PORT"
     health: /api/health
     portal:
       title: ESP CSI room radar

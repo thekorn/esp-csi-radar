@@ -54,28 +54,28 @@ orientation, and keep USB cables from moving during calibration or detection.
 ## Development environment
 
 [Nix flakes](https://nixos.org/) provide ESP-IDF, an Xtensa-capable Zig build,
-Bun, ZLS, nixd, and Codebook. Install the host's locked JavaScript dependencies
-after entering the development environment:
+Node.js 26, pnpm, ZLS, nixd, and Codebook. Install the host's locked JavaScript
+dependencies after entering the development environment:
 
 ```sh
 nix develop
-bun install --frozen-lockfile
+pnpm install --frozen-lockfile
 ```
 
 Before every commit, run the TypeScript type check, Oxlint, and Oxfmt formatting
 check:
 
 ```sh
-nix develop .#setup -c bun run typecheck
-nix develop .#setup -c bun run lint
-nix develop .#setup -c bun run format:check
+nix develop .#setup -c pnpm run typecheck
+nix develop .#setup -c pnpm run lint
+nix develop .#setup -c pnpm run format:check
 ```
 
 Other verification commands can also be run without entering a shell:
 
 ```sh
 nix develop .#setup -c zig build test
-nix develop .#setup -c bun test
+nix develop .#setup -c pnpm test
 nix develop .#setup -c idf.py build
 nix develop .#setup -c codebook-lsp lint --unique -s .
 ```
@@ -93,7 +93,7 @@ The simulator exercises the detector, HTTP API, server-sent events, and every
 visualization state. It alternates between an empty and changed radio field:
 
 ```sh
-nix develop .#setup -c bun run host/server.ts --simulate --bind 0.0.0.0
+nix develop .#setup -c pnpm start --simulate --bind 0.0.0.0
 ```
 
 Open `http://localhost:8080` when running locally. The first empty-room
@@ -109,10 +109,10 @@ Firmware configuration comes from four build-time environment variables:
 
 - `ESP_NETWORK_NAME` — 2.4 GHz Wi-Fi network name;
 - `ESP_NETWORK_SECRET` — WPA password, from 8 through 64 bytes;
-- `ESP_SERVER_HOST` — DNS name or IPv4 address of the Bun server as reachable
-  from the ESP network, without `http://`, `ws://`, or a path;
-- `ESP_SERVER_PORT` — TCP port from 1 through 65535 on which the Bun server will
-  listen.
+- `ESP_SERVER_HOST` — DNS name or IPv4 address of the Node.js server as
+  reachable from the ESP network, without `http://`, `ws://`, or a path;
+- `ESP_SERVER_PORT` — TCP port from 1 through 65535 on which the Node.js server
+  will listen.
 
 No additional variable is needed for plain WebSockets on a trusted LAN. The
 firmware connects to `ws://ESP_SERVER_HOST:ESP_SERVER_PORT/device`. TLS (`wss`),
@@ -138,9 +138,8 @@ rediscover all boards.
 
 ## Run the server
 
-The real-hardware server runs under Node.js 24. Bun remains the package manager
-and test runner, but its Linux N-API implementation does not provide the libuv
-polling APIs required by `serialport`.
+The real-hardware server, package scripts, and tests run under Node.js 26. pnpm
+installs the locked JavaScript dependencies.
 
 Socket mode is the normal detached deployment. It listens on all interfaces by
 default, using `ESP_SERVER_PORT` when `--port` is omitted, and serves the device
@@ -169,7 +168,7 @@ For the persistent service used on `thekorn-server-2`, place the checkout at
 `~/.local/share/esp-csi-radar`, install the tracked user unit, and start it:
 
 ```sh
-nix develop .#setup -c bun install --frozen-lockfile
+nix develop .#setup -c pnpm install --frozen-lockfile
 mkdir -p ~/.config/systemd/user
 cp deploy/esp-csi-radar.service ~/.config/systemd/user/
 systemctl --user daemon-reload
@@ -237,7 +236,7 @@ occupied, empty, and nuisance data before relying on its output.
 ## Repository layout
 
 - `main/` — Zig application and thin ESP-IDF C adapter;
-- `host/` — Bun/TypeScript serial protocol, detector, simulator, and HTTP service;
+- `host/` — Node.js/TypeScript serial protocol, detector, simulator, and HTTP service;
 - `web/` — dependency-free responsive visualization;
 - `Caddyfile` — live `/radar/` path proxy configuration for the hardware host;
 - `scripts/flash-all.sh` — ESP-IDF-driven four-board flashing;

@@ -39,8 +39,8 @@ nix --version
 nix store info
 time_step "Realizing the development environment" \
   nix develop "path:$repo_root#setup" --command true
-time_step "Installing Bun dependencies" \
-  nix develop "path:$repo_root#setup" --command bun install --frozen-lockfile
+time_step "Installing pnpm dependencies" \
+  nix develop "path:$repo_root#setup" --command pnpm install --frozen-lockfile
 
 profile_marker="# esp-csi-radar Nix development shell"
 if grep -Fqx "$profile_marker" "$HOME/.bash_profile" 2>/dev/null; then

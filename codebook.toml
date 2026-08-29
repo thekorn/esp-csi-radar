@@ -44,6 +44,7 @@ words = [
   "oxlintrc",
   "pkgs",
   "pname",
+  "pnpm",
   "redir",
   "rssi",
   "RTS",
@@ -71,9 +72,9 @@ words = [
 ]
 
 ignore_paths = [
-  "bun.lock",
   "dependencies.lock",
   "flake.lock",
+  "pnpm-lock.yaml",
   "build/**",
   "managed_components/**",
 ]

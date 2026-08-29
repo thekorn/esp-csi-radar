@@ -1,4 +1,5 @@
-import { describe, expect, test } from "bun:test";
+import assert from "node:assert/strict";
+import { describe, test } from "node:test";
 
 import { RoomDetector } from "../detector.ts";
 import type { CsiFrame } from "../protocol.ts";
@@ -35,16 +36,16 @@ describe("room detector", () => {
       detector.ingest(frame(sequence), sequence * 0.05);
     }
 
-    expect(detector.snapshot(0.6).state).toBe("clear");
+    assert.equal(detector.snapshot(0.6).state, "clear");
     for (let sequence = 12; sequence < 18; sequence += 1) {
       detector.ingest(frame(sequence, true), sequence * 0.05);
     }
 
     const snapshot = detector.snapshot(0.9);
-    expect(snapshot.state).toBe("occupied");
-    expect(snapshot.links[0].active).toBe(true);
-    expect(snapshot.score).toBeGreaterThan(1);
-    expect(detector.snapshot(4.1).state).toBe("offline");
+    assert.equal(snapshot.state, "occupied");
+    assert.equal(snapshot.links[0].active, true);
+    assert.ok(snapshot.score > 1);
+    assert.equal(detector.snapshot(4.1).state, "offline");
   });
 
   test("normalizes uniform gain changes", () => {
@@ -57,8 +58,8 @@ describe("room detector", () => {
     }
 
     const snapshot = detector.snapshot(1.1);
-    expect(snapshot.state).toBe("clear");
-    expect(snapshot.score).toBeLessThan(1);
+    assert.equal(snapshot.state, "clear");
+    assert.ok(snapshot.score < 1);
   });
 
   test("reset requires fresh calibration", () => {
@@ -67,7 +68,7 @@ describe("room detector", () => {
       detector.ingest(frame(sequence), sequence * 0.05);
     }
     detector.reset();
-    expect(detector.snapshot(0.5).state).toBe("offline");
-    expect(detector.snapshot(0.5).generation).toBe(1);
+    assert.equal(detector.snapshot(0.5).state, "offline");
+    assert.equal(detector.snapshot(0.5).generation, 1);
   });
 });
