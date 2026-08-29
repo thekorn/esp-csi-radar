@@ -52,17 +52,28 @@ orientation, and keep USB cables from moving during calibration or detection.
 ## Development environment
 
 [Nix flakes](https://nixos.org/) provide ESP-IDF, an Xtensa-capable Zig build,
-Python with pyserial, ZLS, nixd, and Codebook:
+Bun, ZLS, nixd, and Codebook. Install the host's locked JavaScript dependencies
+after entering the development environment:
 
 ```sh
 nix develop
+bun install --frozen-lockfile
 ```
 
-Commands can also be run without entering a shell:
+Before every commit, run the TypeScript type check, Oxlint, and Oxfmt formatting
+check:
+
+```sh
+nix develop .#setup -c bun run typecheck
+nix develop .#setup -c bun run lint
+nix develop .#setup -c bun run format:check
+```
+
+Other verification commands can also be run without entering a shell:
 
 ```sh
 nix develop .#setup -c zig build test
-nix develop .#setup -c python -m unittest discover -s host/tests -v
+nix develop .#setup -c bun test
 nix develop .#setup -c idf.py build
 nix develop .#setup -c codebook-lsp lint --unique -s .
 ```
@@ -80,7 +91,7 @@ The simulator exercises the detector, HTTP API, server-sent events, and every
 visualization state. It alternates between an empty and changed radio field:
 
 ```sh
-nix develop .#setup -c python -m host.server --simulate --bind 0.0.0.0
+nix develop .#setup -c bun run host/server.ts --simulate --bind 0.0.0.0
 ```
 
 Open `http://localhost:8080` when running locally. The first empty-room
@@ -102,7 +113,7 @@ nix develop .#setup -c ./scripts/flash-all.sh
 Then start the host service:
 
 ```sh
-nix develop .#setup -c python -m host.server --bind 127.0.0.1 \
+nix develop .#setup -c bun run host/server.ts --bind 127.0.0.1 \
   --ports /dev/esp32-1 /dev/esp32-2 /dev/esp32-3 /dev/esp32-4
 ```
 
@@ -162,7 +173,7 @@ occupied, empty, and nuisance data before relying on its output.
 ## Repository layout
 
 - `main/` — Zig application and thin ESP-IDF C adapter;
-- `host/` — serial protocol, detector, simulator, and HTTP service;
+- `host/` — Bun/TypeScript serial protocol, detector, simulator, and HTTP service;
 - `web/` — dependency-free responsive visualization;
 - `Caddyfile` — live `/radar/` path proxy configuration for the hardware host;
 - `scripts/flash-all.sh` — ESP-IDF-driven four-board flashing;

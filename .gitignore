@@ -4,7 +4,6 @@
 /sdkconfig.old
 /.zig-cache/
 /zig-out/
-__pycache__/
-*.py[cod]
+/node_modules/
 /.amp/portals/
 /.radar-data/
