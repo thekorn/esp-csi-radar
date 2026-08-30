@@ -38,7 +38,7 @@ jobs:
         run: nix develop .#no-zls --command zig build test
 
       - name: Measure Zig test coverage
-        run: nix develop .#setup --command zig-cov test --include=main/ --include=host-zig/
+        run: nix develop .#setup --command zig-cov test --format=github --include=main/ --include=host-zig/
 
       - name: Build Zig host
         run: nix develop .#no-zls --command zig build host
