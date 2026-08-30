@@ -70,7 +70,10 @@
             pname = "zig-cov";
             version = "0.1.0";
             src = zcov;
-            nativeBuildInputs = [ zig-xtensa ];
+            nativeBuildInputs = [ zig-xtensa ]
+              ++ pkgs.lib.optional pkgs.stdenv.hostPlatform.isLinux pkgs.autoPatchelfHook;
+            buildInputs =
+              pkgs.lib.optional pkgs.stdenv.hostPlatform.isLinux pkgs.stdenv.cc.libc;
             dontConfigure = true;
             dontBuild = true;
             installPhase = ''
