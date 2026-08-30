@@ -29,34 +29,34 @@ jobs:
         run: nix flake check --no-build
 
       - name: Check Zig formatting
-        run: nix develop .#setup --command zig fmt --check build.zig test_runner.zig main/main.zig host-zig
+        run: nix develop .#no-zls --command zig fmt --check build.zig test_runner.zig main/main.zig host-zig
 
       - name: Run Zig tests
-        run: nix develop .#setup --command zig build test
+        run: nix develop .#no-zls --command zig build test
 
       - name: Measure Zig test coverage
         run: nix develop .#setup --command zig-cov test --include=main/ --include=host-zig/
 
       - name: Build Zig host
-        run: nix develop .#setup --command zig build host
+        run: nix develop .#no-zls --command zig build host
 
       - name: Install host dependencies
-        run: nix develop .#setup --command pnpm install --frozen-lockfile
+        run: nix develop .#no-zls --command pnpm install --frozen-lockfile
 
       - name: Required pre-commit type check
-        run: nix develop .#setup --command pnpm run typecheck
+        run: nix develop .#no-zls --command pnpm run typecheck
 
       - name: Required pre-commit lint check
-        run: nix develop .#setup --command pnpm run lint
+        run: nix develop .#no-zls --command pnpm run lint
 
       - name: Required pre-commit format check
-        run: nix develop .#setup --command pnpm run format:check
+        run: nix develop .#no-zls --command pnpm run format:check
 
       - name: Run host tests
-        run: nix develop .#setup --command pnpm test
+        run: nix develop .#no-zls --command pnpm test
 
       - name: Spell check
-        run: nix develop .#setup --command codebook-lsp lint --unique -s .
+        run: nix develop .#no-zls --command codebook-lsp lint --unique -s .
 
       - name: Build firmware
         env:
@@ -64,4 +64,4 @@ jobs:
           ESP_NETWORK_SECRET: ci-secret
           ESP_SERVER_HOST: radar.invalid
           ESP_SERVER_PORT: "8080"
-        run: nix develop .#setup --command idf.py build
+        run: nix develop .#no-zls --command idf.py build

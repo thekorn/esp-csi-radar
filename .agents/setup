@@ -38,9 +38,9 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 nix --version
 nix store info
 time_step "Realizing the development environment" \
-  nix develop "path:$repo_root#setup" --command true
+  nix develop "path:$repo_root#no-zls" --command true
 time_step "Installing pnpm dependencies" \
-  nix develop "path:$repo_root#setup" --command pnpm install --frozen-lockfile
+  nix develop "path:$repo_root#no-zls" --command pnpm install --frozen-lockfile
 
 profile_marker="# esp-csi-radar Nix development shell"
 if grep -Fqx "$profile_marker" "$HOME/.bash_profile" 2>/dev/null; then
@@ -52,7 +52,7 @@ $profile_marker
 if [[ -z "\${IN_NIX_SHELL:-}" &&
       -z "\${AMP_PORTAL_PROXY_SOURCE:-}" &&
       "\${PWD}" == "$repo_root" ]]; then
-  eval "\$(nix print-dev-env 'path:$repo_root')"
+  eval "\$(nix print-dev-env 'path:$repo_root#no-zls')"
 fi
 EOF
 

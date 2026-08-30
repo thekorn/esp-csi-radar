@@ -91,22 +91,23 @@
           nativeLibraryPath = pkgs.lib.makeLibraryPath (
             pkgs.lib.optional pkgs.stdenv.hostPlatform.isLinux pkgs.stdenv.cc.cc.lib
           );
+          mkDevelopmentShell = { includeZls ? true }:
+            pkgs.mkShell {
+              packages = corePackages ++ [ pkgs.nixd ]
+                ++ pkgs.lib.optional includeZls zls.packages.${system}.zls;
+              LD_LIBRARY_PATH = nativeLibraryPath;
+              shellHook = ''
+                echo "ESP32 CSI environment: ESP-IDF $(idf.py --version | sed 's/^ESP-IDF //'), Zig $(zig version), Node.js $(node --version), pnpm $(pnpm --version)"
+              '';
+            };
         in
         {
           setup = pkgs.mkShell {
             packages = corePackages;
             LD_LIBRARY_PATH = nativeLibraryPath;
           };
-          default = pkgs.mkShell {
-            packages = corePackages ++ [
-              pkgs.nixd
-              zls.packages.${system}.zls
-            ];
-            LD_LIBRARY_PATH = nativeLibraryPath;
-            shellHook = ''
-              echo "ESP32 CSI environment: ESP-IDF $(idf.py --version | sed 's/^ESP-IDF //'), Zig $(zig version), Node.js $(node --version), pnpm $(pnpm --version)"
-            '';
-          };
+          no-zls = mkDevelopmentShell { includeZls = false; };
+          default = mkDevelopmentShell { };
         });
     };
 }
