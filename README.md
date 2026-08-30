@@ -54,9 +54,10 @@ orientation, and keep USB cables from moving during calibration or detection.
 ## Development environment
 
 [Nix flakes](https://nixos.org/) provide ESP-IDF, an Xtensa-capable Zig build,
-Node.js 26, pnpm, ZLS, nixd, and Codebook. Install the locked JavaScript
-dependencies used by the retained TypeScript reference implementation and its
-tests after entering the development environment:
+[`zig-cov`](https://github.com/ericsssan/zcov), Node.js 26, pnpm, ZLS, nixd, and
+Codebook. Install the locked JavaScript dependencies used by the retained
+TypeScript reference implementation and its tests after entering the
+development environment:
 
 ```sh
 nix develop
@@ -77,9 +78,19 @@ Other verification commands can also be run without entering a shell:
 ```sh
 nix develop .#setup -c zig build host
 nix develop .#setup -c zig build test
+nix develop .#setup -c zig-cov test --include=main/ --include=host-zig/
 nix develop .#setup -c pnpm test
 nix develop .#setup -c idf.py build
 nix develop .#setup -c codebook-lsp lint --unique -s .
+```
+
+`zig-cov test` instruments both the firmware and Zig host test suites and prints
+line and block coverage. To create a self-contained source report, run:
+
+```sh
+nix develop .#setup -c zig-cov test \
+  --include=main/ --include=host-zig/ \
+  --format=html --output=coverage.html
 ```
 
 The project follows the Zig/ESP-IDF boundary used by

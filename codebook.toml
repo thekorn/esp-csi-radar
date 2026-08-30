@@ -9,6 +9,7 @@ words = [
   "Caddyfile",
   "cmake",
   "codebook",
+  "cov",
   "CSI",
   "dasharray",
   "Doptimize",
@@ -69,6 +70,7 @@ words = [
   "WSS",
   "Xtensa",
   "Zig",
+  "zcov",
   "zls",
   "zon",
 ]

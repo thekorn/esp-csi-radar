@@ -4,6 +4,7 @@
 /sdkconfig.old
 /.zig-cache/
 /zig-out/
+/coverage.html
 /node_modules/
 /.amp/portals/
 /.radar-data/

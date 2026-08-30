@@ -5,8 +5,17 @@ fn environment(b: *std.Build, name: []const u8) []const u8 {
     return b.graph.environ_map.get(name) orelse "";
 }
 
+fn instrumentCoverage(tests: *std.Build.Step.Compile, runtime_path: ?[]const u8) void {
+    tests.use_llvm = true;
+    tests.root_module.fuzz = true;
+    tests.root_module.link_libc = true;
+    if (runtime_path) |path| tests.root_module.addObjectFile(.{ .cwd_relative = path });
+}
+
 pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
+    const coverage = b.option(bool, "coverage", "Enable zig-cov") orelse false;
+    const coverage_runtime = b.option([]const u8, "coverage-rt", "Path to zig-cov-rt.o") orelse null;
     const server_port_text = environment(b, "ESP_SERVER_PORT");
     const server_port = std.fmt.parseInt(u16, server_port_text, 10) catch 0;
     const firmware_options = b.addOptions();
@@ -23,8 +32,9 @@ pub fn build(b: *std.Build) void {
     test_module.addOptions("firmware_options", firmware_options);
     const firmware_tests = b.addTest(.{
         .root_module = test_module,
-        .test_runner = .{ .path = b.path("test_runner.zig"), .mode = .simple },
+        .test_runner = if (coverage) null else .{ .path = b.path("test_runner.zig"), .mode = .simple },
     });
+    if (coverage) instrumentCoverage(firmware_tests, coverage_runtime);
     const run_firmware_tests = b.addRunArtifact(firmware_tests);
     const test_step = b.step("test", "Run firmware and host unit tests");
     test_step.dependOn(&run_firmware_tests.step);
@@ -67,8 +77,9 @@ pub fn build(b: *std.Build) void {
     host_test_module.addImport("assets", asset_module);
     const host_tests = b.addTest(.{
         .root_module = host_test_module,
-        .test_runner = .{ .path = b.path("test_runner.zig"), .mode = .simple },
+        .test_runner = if (coverage) null else .{ .path = b.path("test_runner.zig"), .mode = .simple },
     });
+    if (coverage) instrumentCoverage(host_tests, coverage_runtime);
     const run_host_tests = b.addRunArtifact(host_tests);
     test_step.dependOn(&run_host_tests.step);
 

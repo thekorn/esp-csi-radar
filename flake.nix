@@ -4,10 +4,14 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     esp-dev.url = "github:mirrexagon/nixpkgs-esp-dev";
+    zcov = {
+      url = "github:ericsssan/zcov";
+      flake = false;
+    };
     zls.url = "github:zigtools/zls/master";
   };
 
-  outputs = { nixpkgs, zls, esp-dev, ... }:
+  outputs = { nixpkgs, zls, esp-dev, zcov, ... }:
     let
       supportedSystems = [
         "x86_64-linux"
@@ -62,12 +66,27 @@
               runHook postInstall
             '';
           };
+          zig-cov = pkgs.stdenv.mkDerivation {
+            pname = "zig-cov";
+            version = "0.1.0";
+            src = zcov;
+            nativeBuildInputs = [ zig-xtensa ];
+            dontConfigure = true;
+            dontBuild = true;
+            installPhase = ''
+              runHook preInstall
+              export ZIG_GLOBAL_CACHE_DIR="$TMPDIR/zig-global-cache"
+              zig build install -Doptimize=ReleaseSafe --prefix "$out"
+              runHook postInstall
+            '';
+          };
           corePackages = [
             pkgs.codebook
             pkgs.nodejs_26
             pnpm
             esp-idf
             zig-xtensa
+            zig-cov
           ];
           nativeLibraryPath = pkgs.lib.makeLibraryPath (
             pkgs.lib.optional pkgs.stdenv.hostPlatform.isLinux pkgs.stdenv.cc.cc.lib

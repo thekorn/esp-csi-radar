@@ -89,6 +89,7 @@
       "inputs": {
         "esp-dev": "esp-dev",
         "nixpkgs": "nixpkgs_2",
+        "zcov": "zcov",
         "zls": "zls"
       }
     },
@@ -104,6 +105,22 @@
       "original": {
         "owner": "nix-systems",
         "repo": "default",
+        "type": "github"
+      }
+    },
+    "zcov": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1785501261,
+        "narHash": "sha256-1btQKPw+8kZmcQOsfYldKg1wbxS3XGaiq9Ie7YMfsk0=",
+        "owner": "ericsssan",
+        "repo": "zcov",
+        "rev": "d5b606ab43b31fbf4ba88b6484be95cb03747de2",
+        "type": "github"
+      },
+      "original": {
+        "owner": "ericsssan",
+        "repo": "zcov",
         "type": "github"
       }
     },
