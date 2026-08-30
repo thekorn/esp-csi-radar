@@ -18,9 +18,10 @@
 
 - Use the Nix flake development environment; do not rely on globally installed
   ESP-IDF, Zig, Node.js, pnpm packages, or Codebook.
-- Before every commit, run all three required checks:
+- Before every commit, run all four required checks:
 
   ```sh
+  nix develop .#setup -c zig-lint build lint -- --max-warnings 0
   nix develop .#setup -c pnpm run typecheck
   nix develop .#setup -c pnpm run lint
   nix develop .#setup -c pnpm run format:check

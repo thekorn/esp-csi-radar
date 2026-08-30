@@ -29,7 +29,10 @@ jobs:
         run: nix flake check --no-build
 
       - name: Check Zig formatting
-        run: nix develop .#no-zls --command zig fmt --check build.zig test_runner.zig main/main.zig host-zig
+        run: nix develop .#no-zls --command zig fmt --check build.zig build.zig.zon test_runner.zig main/main.zig host-zig
+
+      - name: Lint Zig source
+        run: nix develop .#no-zls --command zig-lint build lint -- --max-warnings 0
 
       - name: Run Zig tests
         run: nix develop .#no-zls --command zig build test

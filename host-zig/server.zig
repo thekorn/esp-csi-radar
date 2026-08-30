@@ -12,7 +12,7 @@ const request_timeout_seconds = 10;
 const device_timeout_seconds = 45;
 const replacement_timeout_seconds = 2;
 
-const HELP =
+const help =
     \\Usage: zig build run-host -- [options]
     \\
     \\Options:
@@ -51,7 +51,7 @@ pub fn main(init: std.process.Init) !void {
         return err;
     };
     if (options.help) {
-        std.debug.print("{s}", .{HELP});
+        std.debug.print("{s}", .{help});
         return;
     }
 

@@ -3,6 +3,7 @@
 /sdkconfig
 /sdkconfig.old
 /.zig-cache/
+/zig-pkg/
 /zig-out/
 /coverage.html
 /node_modules/

@@ -1,4 +1,5 @@
 const std = @import("std");
+const zlinter = @import("zlinter");
 
 fn environment(b: *std.Build, name: []const u8) []const u8 {
     b.graph.poisonCache();
@@ -104,4 +105,22 @@ pub fn build(b: *std.Build) void {
         .dest_sub_path = "radar_zig.o",
     });
     b.getInstallStep().dependOn(&install_application.step);
+
+    const lint_step = b.step("lint", "Lint Zig source code");
+    var lint = zlinter.builder(b, .{});
+    lint.addRule(.{ .builtin = .declaration_naming }, .{
+        .decl_name_min_len = .off,
+    });
+    lint.addRule(.{ .builtin = .function_naming }, .{});
+    lint.addRule(.{ .builtin = .file_naming }, .{});
+    lint.addRule(.{ .builtin = .switch_case_ordering }, .{});
+    lint.addRule(.{ .builtin = .no_unused }, .{});
+    lint.addRule(.{ .builtin = .no_orelse_unreachable }, .{
+        .severity = .@"error",
+    });
+    lint.addPaths(.{
+        .include_dirs = &.{ b.path("host-zig"), b.path("main") },
+        .include_files = &.{ b.path("build.zig"), b.path("test_runner.zig") },
+    });
+    lint_step.dependOn(lint.build());
 }

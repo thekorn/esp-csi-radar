@@ -71,12 +71,14 @@ words = [
   "WSS",
   "Xtensa",
   "Zig",
+  "Zlinter",
   "zcov",
   "zls",
   "zon",
 ]
 
 ignore_paths = [
+  "build.zig.zon",
   "dependencies.lock",
   "flake.lock",
   "pnpm-lock.yaml",

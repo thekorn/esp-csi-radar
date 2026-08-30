@@ -276,6 +276,7 @@ fn startNetwork(device: *const Device) ?u8 {
     return channel;
 }
 
+// zlinter-disable-next-line function_naming - ESP-IDF requires this entrypoint name
 pub fn app_main() callconv(.c) void {
     platform_init();
     var mac: [6]u8 = undefined;

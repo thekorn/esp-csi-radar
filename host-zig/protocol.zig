@@ -2,6 +2,7 @@ const std = @import("std");
 
 pub const max_csi_bytes = 384;
 
+// zlinter-disable-next-line declaration_naming - fixed-size MAC address type
 pub const MacAddress = [17]u8;
 
 pub const Role = enum {

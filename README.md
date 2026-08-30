@@ -55,19 +55,23 @@ orientation, and keep USB cables from moving during calibration or detection.
 
 [Nix flakes](https://nixos.org/) provide ESP-IDF, an Xtensa-capable Zig build,
 [`zig-cov`](https://github.com/ericsssan/zcov), Node.js 26, pnpm, ZLS, nixd, and
-Codebook. Install the locked JavaScript dependencies used by the retained
-TypeScript reference implementation and its tests after entering the
-development environment:
+Codebook. The Zig build fetches the pinned
+[Zlinter](https://github.com/KurtWagner/zlinter) dependency. Because Zlinter
+tracks upstream Zig while firmware needs the Xtensa fork, `zig-lint` invokes a
+pinned upstream compiler and `zig` remains the firmware compiler. Install the
+locked JavaScript dependencies used by the retained TypeScript reference
+implementation and its tests after entering the development environment:
 
 ```sh
 nix develop
 pnpm install --frozen-lockfile
 ```
 
-Before every commit, run the TypeScript type check, Oxlint, and Oxfmt formatting
-check:
+Before every commit, run the Zig and TypeScript lint checks, TypeScript type
+check, and Oxfmt formatting check:
 
 ```sh
+nix develop .#setup -c zig-lint build lint -- --max-warnings 0
 nix develop .#setup -c pnpm run typecheck
 nix develop .#setup -c pnpm run lint
 nix develop .#setup -c pnpm run format:check

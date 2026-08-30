@@ -8,10 +8,14 @@
       url = "github:ericsssan/zcov";
       flake = false;
     };
+    zlinter.url = "github:KurtWagner/zlinter/4937a301d9bc06e013cf2f9fb3ee1fdc8793df1f";
+    zlinter.flake = false;
+    zig-flake.url = "github:silversquirl/zig-flake";
+    zig-flake.inputs.nixpkgs.follows = "nixpkgs";
     zls.url = "github:zigtools/zls/master";
   };
 
-  outputs = { nixpkgs, zls, esp-dev, zcov, ... }:
+  outputs = { nixpkgs, zig-flake, zlinter, zls, esp-dev, zcov, ... }:
     let
       supportedSystems = [
         "x86_64-linux"
@@ -66,6 +70,9 @@
               runHook postInstall
             '';
           };
+          zig-lint = pkgs.writeShellScriptBin "zig-lint" ''
+            exec ${zig-flake.packages.${system}.nightly}/bin/zig "$@"
+          '';
           zig-cov = pkgs.stdenv.mkDerivation {
             pname = "zig-cov";
             version = "0.1.0";
@@ -88,18 +95,26 @@
             pkgs.nodejs_26
             pnpm
             esp-idf
+            zig-lint
             zig-xtensa
             zig-cov
           ];
           nativeLibraryPath = pkgs.lib.makeLibraryPath (
             pkgs.lib.optional pkgs.stdenv.hostPlatform.isLinux pkgs.stdenv.cc.cc.lib
           );
+          prepareZlinter = ''
+            zlinter_package="$PWD/zig-pkg/zlinter-0.0.1-OjQ08YxkFQBQNP_aoK_07mQdcOfv6eho-IPexfuOC4eh"
+            mkdir -p "$PWD/zig-pkg"
+            if [[ ! -e "$zlinter_package" ]]; then
+              ln -s ${zlinter} "$zlinter_package" 2>/dev/null || true
+            fi
+          '';
           mkDevelopmentShell = { includeZls ? true }:
             pkgs.mkShell {
               packages = corePackages ++ [ pkgs.nixd ]
                 ++ pkgs.lib.optional includeZls zls.packages.${system}.zls;
               LD_LIBRARY_PATH = nativeLibraryPath;
-              shellHook = ''
+              shellHook = prepareZlinter + ''
                 echo "ESP32 CSI environment: ESP-IDF $(idf.py --version | sed 's/^ESP-IDF //'), Zig $(zig version), Node.js $(node --version), pnpm $(pnpm --version)"
               '';
             };
@@ -108,6 +123,7 @@
           setup = pkgs.mkShell {
             packages = corePackages;
             LD_LIBRARY_PATH = nativeLibraryPath;
+            shellHook = prepareZlinter;
           };
           no-zls = mkDevelopmentShell { includeZls = false; };
           default = mkDevelopmentShell { };
