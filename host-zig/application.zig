@@ -1,6 +1,7 @@
 const std = @import("std");
 const detector = @import("detector.zig");
 const protocol = @import("protocol.zig");
+const device_config = @import("devices.zon");
 
 pub const SourceMode = enum {
     serial,
@@ -19,26 +20,15 @@ pub const HardwareDevice = struct {
     mac: []const u8,
 };
 
-pub const hardware_devices: [4]HardwareDevice = .{
-    .{ .name = "esp32-1", .role = .TX, .mac = "f4:2d:c9:6b:f2:00" },
-    .{ .name = "esp32-2", .role = .RX, .mac = "e0:8c:fe:59:96:34" },
-    .{ .name = "esp32-3", .role = .RX, .mac = "e0:8c:fe:59:3f:9c" },
-    .{ .name = "esp32-4", .role = .RX, .mac = "b0:cb:d8:cc:c5:a8" },
+pub const hardware_devices: [4]HardwareDevice = devices: {
+    var result: [device_config.hardware_devices.len]HardwareDevice = undefined;
+    for (device_config.hardware_devices, 0..) |device, index| {
+        result[index] = .{ .name = device.name, .role = device.role, .mac = device.mac };
+    }
+    break :devices result;
 };
-
-const socket_ports: [4][]const u8 = .{
-    "ws://esp32-1",
-    "ws://esp32-2",
-    "ws://esp32-3",
-    "ws://esp32-4",
-};
-
-const simulation_ports: [4][]const u8 = .{
-    "sim://tx",
-    "sim://rx-1",
-    "sim://rx-2",
-    "sim://rx-3",
-};
+const socket_ports: [4][]const u8 = device_config.socket_ports;
+const simulation_ports: [4][]const u8 = device_config.simulation_ports;
 
 const max_status_text = 160;
 const max_chip_text = 64;

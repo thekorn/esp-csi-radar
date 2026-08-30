@@ -70,6 +70,7 @@ words = [
   "Xtensa",
   "Zig",
   "zls",
+  "zon",
 ]
 
 ignore_paths = [
