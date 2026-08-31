@@ -1,0 +1,20 @@
+.{
+    .hardware_devices = .{
+        .{ .name = "esp32-1", .role = .TX, .mac = "f4:2d:c9:6b:f2:00" },
+        .{ .name = "esp32-2", .role = .RX, .mac = "e0:8c:fe:59:96:34" },
+        .{ .name = "esp32-3", .role = .RX, .mac = "e0:8c:fe:59:3f:9c" },
+        .{ .name = "esp32-4", .role = .RX, .mac = "b0:cb:d8:cc:c5:a8" },
+    },
+    .socket_ports = .{
+        "ws://esp32-1",
+        "ws://esp32-2",
+        "ws://esp32-3",
+        "ws://esp32-4",
+    },
+    .simulation_ports = .{
+        "sim://tx",
+        "sim://rx-1",
+        "sim://rx-2",
+        "sim://rx-3",
+    },
+}

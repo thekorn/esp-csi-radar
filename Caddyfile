@@ -4,6 +4,15 @@
 	}
 }
 
+http://thekorn-server-2.home {
+	route {
+		handle /device {
+			reverse_proxy 127.0.0.1:8080
+		}
+		redir https://thekorn-server-2.home{uri} 308
+	}
+}
+
 thekorn-server-2.home {
 	log {
 		output file /var/log/caddy/access-thekorn-server-2.home.log
