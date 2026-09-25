@@ -37,7 +37,7 @@
 
 ## Real hardware
 
-- Real-device access must use the Amp runner named `thekorn-server-2`. The
+- Real-device access must use the Amp runner named `thekorn-amp-runner-2`. The
   four boards are exposed as `/dev/esp32-1` through `/dev/esp32-4`.
 - Resolve the runner immediately before hardware work because runner IDs are
   ephemeral. Confirm every chip matches the firmware target before flashing.
@@ -47,7 +47,7 @@
   acknowledgements, and CSI records. Do not claim sensing validation based on
   a successful firmware build alone.
 - Apply the repository `Caddyfile` to the running Caddy instance from the
-  repository root on `thekorn-server-2` with:
+  repository root on the Amp runner `thekorn-amp-runner-2` with:
 
   ```sh
   set -o pipefail
